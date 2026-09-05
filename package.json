@@ -1,0 +1,26 @@
+{
+  "name": "justplay",
+  "version": "1.0.0",
+  "description": "Functional offline desktop music player for Linux with dual-deck crossfade, queue management and local metrics",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --no-sandbox",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "music-player",
+    "desktop",
+    "electron",
+    "crossfade",
+    "offline"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.3.1"
+  },
+  "dependencies": {
+    "music-metadata": "^10.4.0"
+  }
+}
