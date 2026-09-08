@@ -10,6 +10,7 @@ class QueueManager {
     this.shuffle = false;
     this.shuffleHistory = []; // Tracks played in current shuffle cycle
     this.shuffleRemaining = []; // Tracks yet to play in current shuffle cycle
+    this.priorityQueueCount = 0; // Tracks consecutive Play Next insertions
     this.listeners = {
       queueChanged: [],
       currentTrackChanged: [],
@@ -38,6 +39,7 @@ class QueueManager {
   setQueue(tracks, startIndex = 0) {
     this.queue = Array.isArray(tracks) ? [...tracks] : [];
     this.currentIndex = (startIndex >= 0 && startIndex < this.queue.length) ? startIndex : (this.queue.length > 0 ? 0 : -1);
+    this.priorityQueueCount = 0;
     this._resetShuffle();
     this.emit('queueChanged', { queue: this.queue, currentIndex: this.currentIndex });
     this.emit('currentTrackChanged', this.getCurrentTrack());
@@ -48,8 +50,32 @@ class QueueManager {
     this.queue.push(track);
     if (this.currentIndex === -1) {
       this.currentIndex = 0;
+      this.priorityQueueCount = 0;
       this.emit('currentTrackChanged', this.getCurrentTrack());
     }
+    this._updateShufflePool();
+    this.emit('queueChanged', { queue: this.queue, currentIndex: this.currentIndex });
+  }
+
+  /**
+   * Inserts track immediately following the current track in relative FIFO order.
+   * Consecutive calls place each subsequent track after the previously inserted track.
+   */
+  addTrackPlayNext(track) {
+    if (!track) return;
+
+    if (this.currentIndex === -1 || this.queue.length === 0) {
+      this.queue.push(track);
+      this.currentIndex = 0;
+      this.priorityQueueCount = 0;
+      this.emit('currentTrackChanged', this.getCurrentTrack());
+    } else {
+      const insertIndex = this.currentIndex + 1 + this.priorityQueueCount;
+      const clampedIndex = Math.min(insertIndex, this.queue.length);
+      this.queue.splice(clampedIndex, 0, track);
+      this.priorityQueueCount++;
+    }
+
     this._updateShufflePool();
     this.emit('queueChanged', { queue: this.queue, currentIndex: this.currentIndex });
   }
@@ -104,6 +130,7 @@ class QueueManager {
   clear() {
     this.queue = [];
     this.currentIndex = -1;
+    this.priorityQueueCount = 0;
     this._resetShuffle();
     this.emit('queueChanged', { queue: this.queue, currentIndex: -1 });
     this.emit('currentTrackChanged', null);
@@ -119,6 +146,7 @@ class QueueManager {
   jumpTo(index) {
     if (index >= 0 && index < this.queue.length) {
       this.currentIndex = index;
+      this.priorityQueueCount = 0;
       if (this.shuffle) {
         // Record in history
         const tr = this.getCurrentTrack();
@@ -204,6 +232,7 @@ class QueueManager {
    */
   advanceNext() {
     if (this.queue.length === 0) return null;
+    this.priorityQueueCount = 0;
 
     if (this.repeatMode === 'repeat-one') {
       this.emit('currentTrackChanged', this.getCurrentTrack());
@@ -254,6 +283,7 @@ class QueueManager {
    */
   advancePrevious() {
     if (this.queue.length === 0) return null;
+    this.priorityQueueCount = 0;
 
     if (this.repeatMode === 'repeat-one') {
       this.emit('currentTrackChanged', this.getCurrentTrack());

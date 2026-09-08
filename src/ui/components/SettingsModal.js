@@ -77,15 +77,15 @@ class SettingsModal {
             <div class="settings-row">
               <div class="settings-label">
                 <strong>Cor de Destaque (Accent Color)</strong>
-                <span id="setting-accent-name">Azul Aço (#38bdf8)</span>
+                <span id="setting-accent-name">Azul Cobalto (#2563eb)</span>
               </div>
               <div class="settings-control-inline">
                 <div class="accent-swatch-list" id="setting-accent-swatches">
-                  <button type="button" class="accent-swatch-btn active" data-color="#38bdf8" data-name="Azul Aço" style="background-color: #38bdf8;" title="Azul Aço"></button>
+                  <button type="button" class="accent-swatch-btn active" data-color="#2563eb" data-name="Azul Cobalto" style="background-color: #2563eb;" title="Azul Cobalto"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#f59e0b" data-name="Laranja Âmbar" style="background-color: #f59e0b;" title="Laranja Âmbar"></button>
                   <button type="button" class="accent-swatch-btn" data-color="#10b981" data-name="Verde Esmeralda" style="background-color: #10b981;" title="Verde Esmeralda"></button>
-                  <button type="button" class="accent-swatch-btn" data-color="#f59e0b" data-name="Âmbar Quente" style="background-color: #f59e0b;" title="Âmbar Quente"></button>
-                  <button type="button" class="accent-swatch-btn" data-color="#14b8a6" data-name="Teal Sóbrio" style="background-color: #14b8a6;" title="Teal Sóbrio"></button>
-                  <button type="button" class="accent-swatch-btn" data-color="#e4e4e7" data-name="Grafite Puro" style="background-color: #e4e4e7;" title="Grafite Puro"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#e11d48" data-name="Carmesim Sóbrio" style="background-color: #e11d48;" title="Carmesim Sóbrio"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#06b6d4" data-name="Ciano Puro" style="background-color: #06b6d4;" title="Ciano Puro"></button>
                 </div>
               </div>
             </div>
@@ -146,7 +146,7 @@ class SettingsModal {
             <h4 class="settings-section-title">Formatos Suportados & Informações</h4>
             <div class="settings-row">
               <div class="settings-label">
-                <span>Formatos decodificados localmente: <code>.mp3</code>, <code>.flac</code>, <code>.wav</code>, <code>.ogg</code>, <code>.m4a</code> e letras <code>.lrc</code>.</span>
+                <span>Formatos decodificados localmente: <code>.mp3</code>, <code>.flac</code>, <code>.wav</code>, <code>.ogg</code>, <code>.opus</code>, <code>.m4a</code> e letras <code>.lrc</code>.</span>
               </div>
               <div style="font-size: 0.8rem; color: var(--text-muted);" id="setting-lib-stats">
                 JustPlay Offline v1.0.0

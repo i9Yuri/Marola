@@ -28,4 +28,17 @@ describe('Metadata & LRC parsing', () => {
     assert.strictEqual(result.lines[0].text, 'Linha sem timestamp 1');
     assert.strictEqual(result.plain, 'Linha sem timestamp 1\nLinha sem timestamp 2');
   });
+
+  test('parseAudioMetadata parses .opus Vorbis metadata and duration', async () => {
+    const { parseAudioMetadata } = require('../src/metadata/tags');
+    const path = require('path');
+    const opusFile = path.join(__dirname, '../sample_music/Track_C_Opus.opus');
+
+    const meta = await parseAudioMetadata(opusFile);
+    assert.strictEqual(meta.filePath, opusFile);
+    assert.strictEqual(meta.title, 'Test Opus Track');
+    assert.strictEqual(meta.artist, 'Opus Artist');
+    assert.strictEqual(meta.album, 'Opus Test Album');
+    assert.ok(meta.duration >= 0.9 && meta.duration <= 1.2, `Expected ~1s duration, got ${meta.duration}`);
+  });
 });

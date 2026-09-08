@@ -41,6 +41,20 @@ class QueueView {
     `;
 
     this._bindEvents();
+    this._ensureBackdrop();
+  }
+
+  _ensureBackdrop() {
+    if (typeof document === 'undefined') return;
+    let backdrop = document.getElementById('queue-drawer-backdrop');
+    if (!backdrop) {
+      backdrop = document.createElement('div');
+      backdrop.id = 'queue-drawer-backdrop';
+      backdrop.className = 'drawer-backdrop';
+      document.body.appendChild(backdrop);
+    }
+    this.backdropEl = backdrop;
+    this.backdropEl.onclick = () => this.close();
   }
 
   _bindEvents() {
@@ -53,6 +67,22 @@ class QueueView {
       this.app.audioEngine.pause();
       this.renderQueueItems();
     });
+
+    this._onPointerDown = (e) => {
+      if (!this.isOpen) return;
+      // If clicked inside the drawer or inside the queue toggle button, ignore
+      if (this.container && this.container.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('#btn-queue')) return;
+      this.close();
+    };
+
+    this._onKeyDown = (e) => {
+      if (!this.isOpen) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.close();
+      }
+    };
   }
 
   toggle() {
@@ -66,12 +96,27 @@ class QueueView {
   open() {
     this.isOpen = true;
     this.container.classList.add('open');
+    this._ensureBackdrop();
+    if (this.backdropEl) {
+      this.backdropEl.classList.add('open');
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('pointerdown', this._onPointerDown);
+      document.addEventListener('keydown', this._onKeyDown);
+    }
     this.renderQueueItems();
   }
 
   close() {
     this.isOpen = false;
     this.container.classList.remove('open');
+    if (this.backdropEl) {
+      this.backdropEl.classList.remove('open');
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('pointerdown', this._onPointerDown);
+      document.removeEventListener('keydown', this._onKeyDown);
+    }
   }
 
   renderQueueItems() {

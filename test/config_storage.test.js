@@ -87,22 +87,24 @@ describe('ConfigStorage & Preferences Tests', () => {
 
     // Invalid hex falls back to default
     const invalid = ConfigStorage.sanitize({ accentColor: 'invalid-hex' });
-    assert.strictEqual(invalid.accentColor, '#38bdf8');
+    assert.strictEqual(invalid.accentColor, '#2563eb');
 
-    // Preset list contains expected sober colors
-    assert(ConfigStorage.ACCENT_PRESETS.length >= 5);
-    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#38bdf8'));
-    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#10b981'));
-    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#f59e0b'));
+    // Preset list contains expected 5 distinct sober colors
+    assert.strictEqual(ConfigStorage.ACCENT_PRESETS.length, 5);
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#2563eb')); // Cobalt
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#f59e0b')); // Amber
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#10b981')); // Emerald
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#e11d48')); // Crimson
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#06b6d4')); // Cyan
 
     // Persistence in storage
-    storage.updateSettings({ accentColor: '#f59e0b' });
+    storage.updateSettings({ accentColor: '#e11d48' });
     let s = storage.getSettings();
-    assert.strictEqual(s.accentColor, '#f59e0b');
+    assert.strictEqual(s.accentColor, '#e11d48');
 
     // Reload from disk
     const reloaded = new StorageManager(testDb);
     s = reloaded.getSettings();
-    assert.strictEqual(s.accentColor, '#f59e0b');
+    assert.strictEqual(s.accentColor, '#e11d48');
   });
 });

@@ -315,11 +315,11 @@ class TrackList {
             revealEl = document.createElement('div');
             revealEl.className = 'swipe-action-reveal';
             revealEl.innerHTML = `
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                <line x1="19" y1="5" x2="19" y2="19"></line>
               </svg>
-              <span>+ Fila</span>
+              <span>Tocar a seguir</span>
             `;
             row.appendChild(revealEl);
           }
@@ -329,8 +329,8 @@ class TrackList {
 
       if (isSwiping) {
         e.preventDefault();
-        // Clamp swipe between 0 and 130px
-        currentDeltaX = Math.max(0, Math.min(dx, 130));
+        // Clamp swipe between 0 and 150px
+        currentDeltaX = Math.max(0, Math.min(dx, 150));
         row.style.transform = `translateX(${currentDeltaX}px)`;
 
         // Keep reveal pinned to the left edge while expanding
@@ -367,8 +367,12 @@ class TrackList {
 
         const triggered = currentDeltaX >= 70;
         if (triggered) {
-          this.app.queueManager?.addTrack(track);
-          this.app.showToast(`Adicionada à fila: ${track.title || 'Faixa'}`);
+          if (typeof this.app.queueManager?.addTrackPlayNext === 'function') {
+            this.app.queueManager.addTrackPlayNext(track);
+          } else {
+            this.app.queueManager?.addTrack(track);
+          }
+          this.app.showToast(`Tocar a seguir: ${track.title || 'Faixa'}`);
         }
 
         // Suppress row click playback

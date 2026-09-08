@@ -4,7 +4,7 @@ const fs = require('fs');
 const StorageManager = require('../db/storage');
 const { parseAudioMetadata, findAdjacentLrc, parseLrc } = require('../metadata/tags');
 
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.m4a']);
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a']);
 
 let mainWindow = null;
 let storage = null;
@@ -88,7 +88,7 @@ function registerIpcHandlers() {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'Arquivos de Áudio', extensions: ['mp3', 'flac', 'wav', 'ogg', 'm4a'] }
+        { name: 'Arquivos de Áudio', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a'] }
       ],
       title: 'Selecionar Arquivos de Áudio'
     });

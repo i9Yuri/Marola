@@ -4,7 +4,7 @@
 class ConfigStorage {
   static DEFAULT_CONFIG = {
     theme: 'dark', // 'dark' | 'light' | 'system'
-    accentColor: '#38bdf8', // Default industrial steel blue
+    accentColor: '#2563eb', // Default industrial deep ocean cobalt blue
     crossfadeSeconds: 3,
     volume: 0.8,
     repeatMode: 'repeat-all',
@@ -18,11 +18,11 @@ class ConfigStorage {
   };
 
   static ACCENT_PRESETS = [
-    { id: 'blue', label: 'Azul Aço', hex: '#38bdf8', hover: '#0ea5e9', subtle: 'rgba(56, 189, 248, 0.15)', contrast: '#031424' },
-    { id: 'emerald', label: 'Verde Esmeralda', hex: '#10b981', hover: '#059669', subtle: 'rgba(16, 185, 129, 0.15)', contrast: '#022115' },
-    { id: 'amber', label: 'Âmbar Quente', hex: '#f59e0b', hover: '#d97706', subtle: 'rgba(245, 158, 11, 0.15)', contrast: '#251500' },
-    { id: 'teal', label: 'Teal Sóbrio', hex: '#14b8a6', hover: '#0d9488', subtle: 'rgba(20, 184, 166, 0.15)', contrast: '#01201c' },
-    { id: 'zinc', label: 'Grafite Puro', hex: '#e4e4e7', hover: '#a1a1aa', subtle: 'rgba(228, 228, 231, 0.15)', contrast: '#18181b' }
+    { id: 'cobalt', label: 'Azul Cobalto', hex: '#2563eb', hover: '#1d4ed8', subtle: 'rgba(37, 99, 235, 0.15)', contrast: '#ffffff' },
+    { id: 'amber', label: 'Laranja Âmbar', hex: '#f59e0b', hover: '#d97706', subtle: 'rgba(245, 158, 11, 0.15)', contrast: '#1c1000' },
+    { id: 'emerald', label: 'Verde Esmeralda', hex: '#10b981', hover: '#059669', subtle: 'rgba(16, 185, 129, 0.15)', contrast: '#ffffff' },
+    { id: 'crimson', label: 'Carmesim Sóbrio', hex: '#e11d48', hover: '#be123c', subtle: 'rgba(225, 29, 72, 0.15)', contrast: '#ffffff' },
+    { id: 'cyan', label: 'Ciano Puro', hex: '#06b6d4', hover: '#0891b2', subtle: 'rgba(6, 182, 212, 0.15)', contrast: '#04222a' }
   ];
 
   /**
