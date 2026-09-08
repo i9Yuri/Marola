@@ -30,6 +30,22 @@ async function initApp() {
       this.favoritesSet = new Set(Array.isArray(favsList) ? favsList : []);
     },
 
+    switchView(target) {
+      this.currentView = target;
+      const recentContainer = document.getElementById('view-recent-container');
+      const playlistsContainer = document.getElementById('view-playlists-container');
+
+      if (target === 'recent') {
+        if (recentContainer) recentContainer.style.display = 'flex';
+        if (playlistsContainer) playlistsContainer.style.display = 'none';
+        if (this.views.recent) this.views.recent.loadTracks();
+      } else if (target === 'playlists') {
+        if (recentContainer) recentContainer.style.display = 'none';
+        if (playlistsContainer) playlistsContainer.style.display = 'flex';
+        if (this.views.playlists) this.views.playlists.loadData();
+      }
+    },
+
     applyTheme(theme) {
       const root = document.documentElement;
       if (this._systemThemeListener) {
@@ -237,6 +253,9 @@ async function initApp() {
   }
 
   // Mount Views defensively
+  const topHeaderContainer = document.getElementById('top-header-container');
+  const libraryRailContainer = document.getElementById('sidebar-rail-container');
+  const sidebarRightContainer = document.getElementById('sidebar-right-container');
   const recentViewContainer = document.getElementById('view-recent-container');
   const playlistsViewContainer = document.getElementById('view-playlists-container');
   const queueDrawerContainer = document.getElementById('queue-drawer-container');
@@ -245,6 +264,9 @@ async function initApp() {
   const settingsModalContainer = document.getElementById('settings-modal-container');
   const playerBarContainer = document.getElementById('player-bar');
 
+  let topHeader = null;
+  let libraryRail = null;
+  let sidebarRight = null;
   let homeRecentView = null;
   let playlistsRankView = null;
   let queueView = null;
@@ -302,18 +324,130 @@ async function initApp() {
   }
 
   try {
+    topHeader = new TopHeader(app, {
+      onSearch: (term) => {
+        if (app.currentView !== 'recent') {
+          app.switchView('recent');
+        }
+        homeRecentView?.setSearchTerm(term);
+      },
+      onHomeClick: () => {
+        app.switchView('recent');
+        homeRecentView?.setSearchTerm('');
+        homeRecentView?.setActiveFilter('all');
+      },
+      onBrowseFolder: async () => {
+        const folder = await window.api.openFolderDialog();
+        if (folder) {
+          app.showToast('Escaneando pasta de músicas...');
+          await window.api.addLibraryFolder(folder);
+          const audioFiles = await window.api.scanFolder(folder);
+          if (audioFiles.length > 0) {
+            app.showToast(`Importando ${audioFiles.length} faixas...`);
+            await window.api.parseMetadataBatch(audioFiles);
+            app.showToast('Faixas adicionadas à biblioteca!');
+            await homeRecentView?.loadTracks();
+          }
+        }
+      },
+      onOpenSettings: () => {
+        settingsModal?.open();
+      }
+    });
+    app.views.topHeader = topHeader;
+    if (topHeaderContainer) topHeader.mount(topHeaderContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting TopHeader:', e);
+  }
+
+  try {
+    libraryRail = new LibraryRail(app, {
+      onSelectLikedSongs: () => {
+        app.switchView('recent');
+        homeRecentView?.setActiveFilter('all');
+        homeRecentView?.filterByFavorites();
+      },
+      onSelectPlaylist: (playlistId) => {
+        app.switchView('playlists');
+        playlistsRankView?.selectPlaylist(playlistId);
+      },
+      onCreatePlaylist: () => {
+        app.openCreatePlaylistModal(async (name) => {
+          if (name) {
+            const newPl = await window.api.createPlaylist(name);
+            app.showToast(`Playlist "${newPl.name}" criada!`);
+            libraryRail?.loadPlaylists();
+            if (app.currentView === 'playlists') {
+              playlistsRankView?.loadPlaylists();
+            }
+          }
+        });
+      }
+    });
+    app.views.libraryRail = libraryRail;
+    if (libraryRailContainer) libraryRail.mount(libraryRailContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting LibraryRail:', e);
+  }
+
+  try {
+    sidebarRight = new SidebarRight(app, audioEngine, queueManager, {
+      onFilterByArtist: (artistName) => {
+        app.switchView('recent');
+        topHeader?.setSearchTerm(artistName);
+        homeRecentView?.setSearchTerm(artistName);
+      },
+      onToggleFavorite: async (track) => {
+        if (!track?.filePath) return;
+        const isFav = app.isFavorite(track.filePath);
+        if (isFav) {
+          await window.api.removeFavorite(track.filePath);
+          app.favoritesSet.delete(track.filePath);
+        } else {
+          await window.api.addFavorite(track.filePath);
+          app.favoritesSet.add(track.filePath);
+        }
+        sidebarRight?.updateFavoriteState();
+        playerBar?.updateFavoriteState();
+        updateAllTrackLists();
+      }
+    });
+    app.views.sidebarRight = sidebarRight;
+    if (sidebarRightContainer) sidebarRight.mount(sidebarRightContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting SidebarRight:', e);
+  }
+
+  try {
     playerBar = new PlayerBar(audioEngine, queueManager, {
       onToggleQueue: () => queueView?.toggle(),
       onToggleLyrics: () => lyricsView?.toggle(),
       onOpenNowPlaying: () => nowPlayingView?.open(),
-      onOpenSettings: () => settingsModal?.open()
+      onOpenSettings: () => settingsModal?.open(),
+      onToggleRightSidebar: () => sidebarRight?.toggle(),
+      onToggleFavorite: async () => {
+        const track = queueManager.getCurrentTrack();
+        if (!track?.filePath) return;
+        const isFav = app.isFavorite(track.filePath);
+        if (isFav) {
+          await window.api.removeFavorite(track.filePath);
+          app.favoritesSet.delete(track.filePath);
+        } else {
+          await window.api.addFavorite(track.filePath);
+          app.favoritesSet.add(track.filePath);
+        }
+        playerBar?.updateFavoriteState();
+        sidebarRight?.updateFavoriteState();
+        updateAllTrackLists();
+      }
     });
+    app.views.playerBar = playerBar;
     if (playerBarContainer) playerBar.mount(playerBarContainer);
   } catch (e) {
     console.error('[Renderer] Error mounting PlayerBar:', e);
   }
 
-  // Settings button in sidebar
+  // Settings button in sidebar (fallback)
   const navBtnSettings = document.getElementById('nav-btn-settings');
   if (navBtnSettings) {
     navBtnSettings.addEventListener('click', () => {
@@ -323,25 +457,13 @@ async function initApp() {
     });
   }
 
-  // Navigation menu handling
+  // Navigation menu handling (fallback)
   const navItems = document.querySelectorAll('.nav-menu .nav-item[data-target]');
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       navItems.forEach(n => n.classList.remove('active'));
       item.classList.add('active');
-
-      const target = item.dataset.target;
-      app.currentView = target;
-
-      if (target === 'recent') {
-        if (recentViewContainer) recentViewContainer.style.display = 'flex';
-        if (playlistsViewContainer) playlistsViewContainer.style.display = 'none';
-        if (homeRecentView) homeRecentView.loadTracks();
-      } else if (target === 'playlists') {
-        if (recentViewContainer) recentViewContainer.style.display = 'none';
-        if (playlistsViewContainer) playlistsViewContainer.style.display = 'flex';
-        if (playlistsRankView) playlistsRankView.loadData();
-      }
+      app.switchView(item.dataset.target);
     });
   });
 
@@ -362,8 +484,10 @@ async function initApp() {
     }
   };
 
-  queueManager.on('currentTrackChanged', () => {
+  queueManager.on('currentTrackChanged', (track) => {
     updateAllTrackLists();
+    sidebarRight?.updateTrack(track);
+    playerBar?.updateFavoriteState();
   });
 
   audioEngine.on('stateChange', ({ isPlaying }) => {

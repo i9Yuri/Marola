@@ -1,5 +1,6 @@
 /**
- * PlayerBar component: manages bottom bar transport, scrubbing, volume and crossfade
+ * PlayerBar component: manages bottom bar transport, scrubbing, volume and auxiliary toggles
+ * in a trifurcated Spotify desktop layout.
  */
 class PlayerBar {
   constructor(audioEngine, queueManager, options = {}) {
@@ -8,22 +9,32 @@ class PlayerBar {
     this.onToggleQueue = options.onToggleQueue || (() => {});
     this.onToggleLyrics = options.onToggleLyrics || (() => {});
     this.onOpenNowPlaying = options.onOpenNowPlaying || (() => {});
+    this.onToggleRightSidebar = options.onToggleRightSidebar || (() => {});
+    this.onToggleFavorite = options.onToggleFavorite || (() => {});
 
     this.isDraggingSeek = false;
     this.dom = {};
   }
 
   mount(containerElement) {
-    containerElement.innerHTML = `
-      <!-- Left: Track info (clickable for Now Playing expanded view) -->
-      <div class="player-track-info clickable" id="player-track-info-trigger" title="Clique para expandir Now Playing">
-        <div class="player-cover" id="player-cover">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+    this.container = containerElement;
+    this.container.innerHTML = `
+      <!-- Left: Track info with favorite heart -->
+      <div class="player-track-info-area">
+        <div class="player-track-info clickable" id="player-track-info-trigger" title="Clique para detalhes da faixa">
+          <div class="player-cover" id="player-cover">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          </div>
+          <div class="player-metadata">
+            <span class="player-title" id="player-title">Nenhuma faixa selecionada</span>
+            <span class="player-artist" id="player-artist">JustPlay Offline</span>
+          </div>
         </div>
-        <div class="player-metadata">
-          <span class="player-title" id="player-title">Nenhuma faixa selecionada</span>
-          <span class="player-artist" id="player-artist">JustPlay Offline</span>
-        </div>
+        <button class="btn-icon btn-player-fav" id="player-btn-fav" title="Curtir">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Center: Controls & Progress -->
@@ -57,8 +68,25 @@ class PlayerBar {
         </div>
       </div>
 
-      <!-- Right: Volume & Drawers (despoluído sem botão de configurações) -->
+      <!-- Right: Auxiliary tools (Lyrics, Queue, Artist Sidebar, Volume, Fullscreen) -->
       <div class="player-right">
+        <button class="btn-icon" id="btn-lyrics" title="Letras">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+          </svg>
+        </button>
+        <button class="btn-icon" id="btn-queue" title="Fila de Reprodução">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        </button>
+        <button class="btn-icon" id="btn-toggle-right-sidebar" title="Visão Tocando Agora & Artista">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M15 3v18"></path>
+          </svg>
+        </button>
+
         <div class="volume-control">
           <button class="btn-icon" id="btn-mute" title="Mudo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
@@ -66,11 +94,13 @@ class PlayerBar {
           <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" title="Volume">
         </div>
 
-        <button class="btn-icon" id="btn-lyrics" title="Letras">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        </button>
-        <button class="btn-icon" id="btn-queue" title="Fila de Reprodução">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        <button class="btn-icon" id="btn-fullscreen" title="Modo Foco / Tela Cheia">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
         </button>
       </div>
     `;
@@ -87,6 +117,7 @@ class PlayerBar {
       cover: q('player-cover'),
       title: q('player-title'),
       artist: q('player-artist'),
+      btnFav: q('player-btn-fav'),
       btnPlayPause: q('btn-play-pause'),
       iconPlay: q('icon-play'),
       iconPause: q('icon-pause'),
@@ -103,7 +134,9 @@ class PlayerBar {
       volumeSlider: q('volume-slider'),
       btnMute: q('btn-mute'),
       btnLyrics: q('btn-lyrics'),
-      btnQueue: q('btn-queue')
+      btnQueue: q('btn-queue'),
+      btnRightSidebar: q('btn-toggle-right-sidebar'),
+      btnFullscreen: q('btn-fullscreen')
     };
   }
 
@@ -122,8 +155,20 @@ class PlayerBar {
       this._updateRepeatUi(mode);
     });
 
-    // Now Playing expansion trigger
-    this.dom.trackInfoTrigger?.addEventListener('click', () => this.onOpenNowPlaying());
+    // Track info click triggers Right Sidebar toggle
+    this.dom.trackInfoTrigger?.addEventListener('click', () => this.onToggleRightSidebar());
+
+    // Favorite toggle button
+    this.dom.btnFav?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onToggleFavorite();
+    });
+
+    // Auxiliary buttons
+    this.dom.btnLyrics?.addEventListener('click', () => this.onToggleLyrics());
+    this.dom.btnQueue?.addEventListener('click', () => this.onToggleQueue());
+    this.dom.btnRightSidebar?.addEventListener('click', () => this.onToggleRightSidebar());
+    this.dom.btnFullscreen?.addEventListener('click', () => this.onOpenNowPlaying());
 
     // Volume slider
     this.dom.volumeSlider?.addEventListener('input', (e) => {
@@ -173,10 +218,6 @@ class PlayerBar {
       });
     }
 
-    // Drawers toggle
-    this.dom.btnLyrics?.addEventListener('click', () => this.onToggleLyrics());
-    this.dom.btnQueue?.addEventListener('click', () => this.onToggleQueue());
-
     // Audio Engine Listeners
     this.audioEngine.on('stateChange', ({ isPlaying, volume }) => {
       if (this.dom.iconPlay) this.dom.iconPlay.style.display = isPlaying ? 'none' : 'block';
@@ -222,6 +263,18 @@ class PlayerBar {
       this.dom.cover.innerHTML = track.coverDataUrl
         ? `<img src="${track.coverDataUrl}" alt="Capa" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">`
         : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
+    }
+  }
+
+  syncFavoriteState(isFav) {
+    if (!this.dom.btnFav) return;
+    const svg = this.dom.btnFav.querySelector('svg');
+    if (isFav) {
+      this.dom.btnFav.classList.add('active');
+      if (svg) svg.setAttribute('fill', 'var(--accent-color)');
+    } else {
+      this.dom.btnFav.classList.remove('active');
+      if (svg) svg.setAttribute('fill', 'none');
     }
   }
 

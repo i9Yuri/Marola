@@ -9,6 +9,9 @@ const LyricsView = require('../src/ui/components/LyricsView');
 const NowPlayingView = require('../src/ui/components/NowPlayingView');
 const SettingsModal = require('../src/ui/components/SettingsModal');
 const PlayerBar = require('../src/ui/components/PlayerBar');
+const TopHeader = require('../src/ui/components/TopHeader');
+const LibraryRail = require('../src/ui/components/LibraryRail');
+const SidebarRight = require('../src/ui/components/SidebarRight');
 const QueueManager = require('../src/audio/queue-manager');
 
 describe('UI Components Lifecycle & Instantiation', () => {
@@ -153,5 +156,79 @@ describe('UI Components Lifecycle & Instantiation', () => {
     pBar.mount(dummyContainer);
     assert.strictEqual(dummyContainer.innerHTML.includes('id="btn-settings"'), false);
     assert.strictEqual(pBar.dom.btnSettings, undefined);
+  });
+
+  test('TopHeader instantiates and exposes public API', () => {
+    assert.ok(typeof TopHeader === 'function');
+    let searched = '';
+    const th = new TopHeader(mockApp, {
+      onSearch: (t) => { searched = t; }
+    });
+    assert.ok(th);
+    th.setSearchTerm('rock');
+    assert.strictEqual(th.searchTerm, 'rock');
+  });
+
+  test('LibraryRail instantiates and manages playlist state', () => {
+    assert.ok(typeof LibraryRail === 'function');
+    let selectedPl = null;
+    const lr = new LibraryRail(mockApp, {
+      onSelectPlaylist: (id) => { selectedPl = id; }
+    });
+    assert.ok(lr);
+    assert.deepStrictEqual(lr.playlists, []);
+    lr.setActiveItem('liked');
+    assert.strictEqual(lr.activeItemId, 'liked');
+  });
+
+  test('SidebarRight instantiates and computes artist stats', async () => {
+    assert.ok(typeof SidebarRight === 'function');
+    const sr = new SidebarRight(mockApp, mockAudioEngine, queueManager);
+    assert.ok(sr);
+    assert.strictEqual(sr.isOpen, true);
+    sr.toggle();
+    assert.strictEqual(sr.isOpen, false);
+    sr.open();
+    assert.strictEqual(sr.isOpen, true);
+
+    // Test artist stats calculation with fallback when window.api is undefined in Node
+    const stats = await sr.computeArtistStats('Queen');
+    assert.strictEqual(typeof stats.totalPlays, 'number');
+    assert.strictEqual(typeof stats.trackCount, 'number');
+  });
+
+  test('HomeRecentView contains category filters and strictly zero advertisements', () => {
+    const homeView = new HomeRecentView(mockApp);
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    homeView.mount(dummyContainer);
+
+    // Verify advertisement suppression
+    const htmlLower = dummyContainer.innerHTML.toLowerCase();
+    assert.strictEqual(htmlLower.includes('anúncio'), false);
+    assert.strictEqual(htmlLower.includes('ad banner'), false);
+    assert.strictEqual(htmlLower.includes('patrocinado'), false);
+    assert.strictEqual(htmlLower.includes('upgrade to premium'), false);
+
+    // Verify presence of modern Spotify layout elements
+    assert.ok(dummyContainer.innerHTML.includes('category-pills-bar'));
+    assert.ok(dummyContainer.innerHTML.includes('quick-access-grid'));
+    assert.ok(dummyContainer.innerHTML.includes('cards-carousel-row'));
+  });
+
+  test('PlayerBar includes trifurcated controls: favorite heart, sidebar toggle, fullscreen', () => {
+    const pBar = new PlayerBar(mockAudioEngine, queueManager);
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    pBar.mount(dummyContainer);
+    assert.ok(dummyContainer.innerHTML.includes('player-btn-fav'));
+    assert.ok(dummyContainer.innerHTML.includes('btn-toggle-right-sidebar'));
+    assert.ok(dummyContainer.innerHTML.includes('btn-fullscreen'));
   });
 });
