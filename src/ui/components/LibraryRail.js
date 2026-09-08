@@ -1,7 +1,7 @@
-/**
- * LibraryRail: Collapsed left vertical rail (~72px) with library shelf icon,
- * quick '+' creation button, and vertical stack of square thumbnails for Liked Songs and Playlists.
- */
+const _PlaylistCoverServiceRail = typeof PlaylistCoverService !== 'undefined'
+  ? PlaylistCoverService
+  : (typeof require !== 'undefined' ? require('../../services/playlistCoverService') : null);
+
 class LibraryRail {
   constructor(appContext, options = {}) {
     this.app = appContext;
@@ -106,7 +106,7 @@ class LibraryRail {
 
       html += `
         <div class="rail-thumb-item ${isPlActive ? 'active' : ''}" data-id="${pl.id}" title="${tooltip}">
-          <div class="rail-thumb-pl">
+          <div class="rail-thumb-pl" id="rail-thumb-pl-${pl.id}">
             <span>${initials}</span>
           </div>
         </div>
@@ -114,6 +114,19 @@ class LibraryRail {
     });
 
     scrollEl.innerHTML = html;
+
+    // Asynchronously update thumbnails with dynamic covers
+    this.playlists.forEach(async (pl) => {
+      if (typeof window !== 'undefined' && window.api?.getPlaylistTracks) {
+        try {
+          const tracks = await window.api.getPlaylistTracks(pl.id);
+          const thumbEl = scrollEl.querySelector(`#rail-thumb-pl-${pl.id}`);
+          if (thumbEl && tracks && tracks.length > 0 && _PlaylistCoverServiceRail) {
+            thumbEl.innerHTML = _PlaylistCoverServiceRail.getCoverHtml(pl, tracks);
+          }
+        } catch (e) {}
+      }
+    });
 
     // Attach click handlers
     scrollEl.querySelectorAll('.rail-thumb-item').forEach(item => {

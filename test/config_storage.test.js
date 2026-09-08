@@ -87,11 +87,11 @@ describe('ConfigStorage & Preferences Tests', () => {
 
     // Invalid hex falls back to default
     const invalid = ConfigStorage.sanitize({ accentColor: 'invalid-hex' });
-    assert.strictEqual(invalid.accentColor, '#2563eb');
+    assert.strictEqual(invalid.accentColor, '#1ed760');
 
     // Preset list contains expected 5 distinct sober colors
     assert.strictEqual(ConfigStorage.ACCENT_PRESETS.length, 5);
-    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#2563eb')); // Cobalt
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#1ed760')); // Spotify Green
     assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#f59e0b')); // Amber
     assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#10b981')); // Emerald
     assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#e11d48')); // Crimson
@@ -106,5 +106,20 @@ describe('ConfigStorage & Preferences Tests', () => {
     const reloaded = new StorageManager(testDb);
     s = reloaded.getSettings();
     assert.strictEqual(s.accentColor, '#e11d48');
+  });
+
+  test('Audio output sink ID validation and persistence', () => {
+    const valid = ConfigStorage.sanitize({ audioOutputSinkId: 'device-xyz-123' });
+    assert.strictEqual(valid.audioOutputSinkId, 'device-xyz-123');
+
+    const invalid = ConfigStorage.sanitize({ audioOutputSinkId: 12345 });
+    assert.strictEqual(invalid.audioOutputSinkId, 'default');
+
+    storage.updateSettings({ audioOutputSinkId: 'headphones-sink' });
+    let s = storage.getSettings();
+    assert.strictEqual(s.audioOutputSinkId, 'headphones-sink');
+
+    const reloaded = new StorageManager(testDb);
+    assert.strictEqual(reloaded.getSettings().audioOutputSinkId, 'headphones-sink');
   });
 });

@@ -247,6 +247,11 @@ async function initApp() {
       if (remoteSettings.backgroundImage) {
         app.applyBackground(remoteSettings.backgroundImage, remoteSettings.backgroundDim ?? 0.4);
       }
+      if (remoteSettings.audioOutputSinkId) {
+        audioEngine.setSinkId(remoteSettings.audioOutputSinkId).catch(err => {
+          console.warn('[Renderer] Failed to set initial audio sink:', err);
+        });
+      }
     }
   } catch (err) {
     console.warn('[Renderer] Failed to load remote settings/favorites:', err);

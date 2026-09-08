@@ -17,13 +17,15 @@ class AudioEngine {
     this.crossfadeSeconds = 3; // 0 to 12s
     this.volume = 0.8;
     this.isPlaying = false;
+    this.sinkId = 'default';
 
     this.listeners = {
       timeupdate: [],
       trackChange: [],
       stateChange: [],
       trackPlayedHalf: [],
-      crossfadeStatus: []
+      crossfadeStatus: [],
+      sinkChange: []
     };
 
     this._monitorInterval = null;
@@ -35,6 +37,9 @@ class AudioEngine {
       }
       if (typeof settings.volume === 'number') {
         this.volume = settings.volume;
+      }
+      if (typeof settings.audioOutputSinkId === 'string' && settings.audioOutputSinkId.trim()) {
+        this.sinkId = settings.audioOutputSinkId.trim();
       }
     }
   }
@@ -70,6 +75,10 @@ class AudioEngine {
     this.masterGain.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
     this.masterGain.connect(this.audioCtx.destination);
 
+    if (this.sinkId && this.sinkId !== 'default' && typeof this.audioCtx.setSinkId === 'function') {
+      this.audioCtx.setSinkId(this.sinkId).catch(() => {});
+    }
+
     this.deckA = this._createDeck('A');
     this.deckB = this._createDeck('B');
 
@@ -84,6 +93,10 @@ class AudioEngine {
     const audio = new Audio();
     audio.preload = 'auto';
     audio.crossOrigin = 'anonymous';
+
+    if (this.sinkId && this.sinkId !== 'default' && typeof audio.setSinkId === 'function') {
+      audio.setSinkId(this.sinkId).catch(() => {});
+    }
 
     const gainNode = this.audioCtx.createGain();
     gainNode.connect(this.masterGain);
@@ -106,6 +119,50 @@ class AudioEngine {
     });
 
     return deck;
+  }
+
+  /**
+   * Sets the audio output sink device ID across AudioContext and HTMLAudioElement decks.
+   * @param {string} sinkId Device identifier ('default' or specific device ID)
+   * @returns {Promise<boolean>}
+   */
+  async setSinkId(sinkId) {
+    this.sinkId = sinkId || 'default';
+    let applied = false;
+
+    try {
+      if (this.audioCtx && typeof this.audioCtx.setSinkId === 'function') {
+        await this.audioCtx.setSinkId(this.sinkId);
+        applied = true;
+      }
+    } catch (err) {
+      console.warn('[AudioEngine] audioCtx.setSinkId failed:', err);
+    }
+
+    try {
+      if (this.deckA?.audio && typeof this.deckA.audio.setSinkId === 'function') {
+        await this.deckA.audio.setSinkId(this.sinkId);
+        applied = true;
+      }
+    } catch (err) {
+      console.warn('[AudioEngine] deckA.audio.setSinkId failed:', err);
+    }
+
+    try {
+      if (this.deckB?.audio && typeof this.deckB.audio.setSinkId === 'function') {
+        await this.deckB.audio.setSinkId(this.sinkId);
+        applied = true;
+      }
+    } catch (err) {
+      console.warn('[AudioEngine] deckB.audio.setSinkId failed:', err);
+    }
+
+    if (this.storageManager?.updateSettings) {
+      this.storageManager.updateSettings({ audioOutputSinkId: this.sinkId });
+    }
+
+    this.emit('sinkChange', { sinkId: this.sinkId });
+    return applied;
   }
 
   getActiveDeck() {

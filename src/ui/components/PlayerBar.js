@@ -87,6 +87,23 @@ class PlayerBar {
           </svg>
         </button>
 
+        <!-- Audio Output Sink Selector -->
+        <div class="audio-sink-wrapper">
+          <button class="btn-icon" id="btn-audio-sink" title="Dispositivo de saída de áudio">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </button>
+          <div class="audio-sink-popover" id="audio-sink-popover">
+            <div class="audio-sink-header">Dispositivo de Saída</div>
+            <div class="audio-sink-list" id="audio-sink-list">
+              <!-- Dynamically populated output devices -->
+            </div>
+          </div>
+        </div>
+
         <div class="volume-control">
           <button class="btn-icon" id="btn-mute" title="Mudo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
@@ -136,7 +153,10 @@ class PlayerBar {
       btnLyrics: q('btn-lyrics'),
       btnQueue: q('btn-queue'),
       btnRightSidebar: q('btn-toggle-right-sidebar'),
-      btnFullscreen: q('btn-fullscreen')
+      btnFullscreen: q('btn-fullscreen'),
+      btnAudioSink: q('btn-audio-sink'),
+      audioSinkPopover: q('audio-sink-popover'),
+      audioSinkList: q('audio-sink-list')
     };
   }
 
@@ -169,6 +189,20 @@ class PlayerBar {
     this.dom.btnQueue?.addEventListener('click', () => this.onToggleQueue());
     this.dom.btnRightSidebar?.addEventListener('click', () => this.onToggleRightSidebar());
     this.dom.btnFullscreen?.addEventListener('click', () => this.onOpenNowPlaying());
+
+    // Audio Output Sink selector
+    this.dom.btnAudioSink?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleAudioSinkPopover();
+    });
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('click', (e) => {
+        if (this.dom.audioSinkPopover && !e.target.closest?.('.audio-sink-wrapper')) {
+          this.dom.audioSinkPopover.classList.remove('open');
+        }
+      });
+    }
 
     // Volume slider
     this.dom.volumeSlider?.addEventListener('input', (e) => {
@@ -300,6 +334,72 @@ class PlayerBar {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  async _toggleAudioSinkPopover() {
+    if (!this.dom.audioSinkPopover) return;
+    const isOpen = this.dom.audioSinkPopover.classList.toggle('open');
+    if (isOpen) {
+      await this._populateAudioOutputs();
+    }
+  }
+
+  async _populateAudioOutputs() {
+    if (!this.dom.audioSinkList) return;
+    this.dom.audioSinkList.innerHTML = '<div style="padding: 8px 10px; font-size: 0.78rem; color: var(--text-muted);">Buscando dispositivos...</div>';
+
+    let devices = [];
+    try {
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        devices = all.filter(d => d.kind === 'audiooutput');
+      }
+    } catch (err) {
+      console.warn('[PlayerBar] Error enumerating audio devices:', err);
+    }
+
+    if (!devices || devices.length === 0) {
+      devices = [{ deviceId: 'default', label: 'Saída Padrão do Sistema' }];
+    }
+
+    const activeId = this.audioEngine?.sinkId || 'default';
+
+    let html = '';
+    devices.forEach((dev, idx) => {
+      const devId = dev.deviceId || 'default';
+      const isAct = devId === activeId;
+      const label = dev.label || `Dispositivo de Saída ${idx + 1}`;
+      html += `
+        <button class="audio-sink-item ${isAct ? 'active' : ''}" data-device-id="${devId}" title="${this._escapeHtml(label)}">
+          <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px;">${this._escapeHtml(label)}</span>
+          ${isAct ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
+        </button>
+      `;
+    });
+
+    this.dom.audioSinkList.innerHTML = html;
+
+    this.dom.audioSinkList.querySelectorAll('.audio-sink-item').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.deviceId;
+        if (this.audioEngine?.setSinkId) {
+          await this.audioEngine.setSinkId(id);
+        }
+        if (typeof window !== 'undefined' && window.api?.updateSettings) {
+          await window.api.updateSettings({ audioOutputSinkId: id });
+        }
+        this.dom.audioSinkPopover?.classList.remove('open');
+      });
+    });
+  }
+
+  _escapeHtml(str) {
+    return (str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }
 

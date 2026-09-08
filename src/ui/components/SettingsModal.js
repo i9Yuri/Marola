@@ -77,11 +77,11 @@ class SettingsModal {
             <div class="settings-row">
               <div class="settings-label">
                 <strong>Cor de Destaque (Accent Color)</strong>
-                <span id="setting-accent-name">Azul Cobalto (#2563eb)</span>
+                <span id="setting-accent-name">Verde Spotify (#1ed760)</span>
               </div>
               <div class="settings-control-inline">
                 <div class="accent-swatch-list" id="setting-accent-swatches">
-                  <button type="button" class="accent-swatch-btn active" data-color="#2563eb" data-name="Azul Cobalto" style="background-color: #2563eb;" title="Azul Cobalto"></button>
+                  <button type="button" class="accent-swatch-btn active" data-color="#1ed760" data-name="Verde Spotify" style="background-color: #1ed760;" title="Verde Spotify"></button>
                   <button type="button" class="accent-swatch-btn" data-color="#f59e0b" data-name="Laranja Âmbar" style="background-color: #f59e0b;" title="Laranja Âmbar"></button>
                   <button type="button" class="accent-swatch-btn" data-color="#10b981" data-name="Verde Esmeralda" style="background-color: #10b981;" title="Verde Esmeralda"></button>
                   <button type="button" class="accent-swatch-btn" data-color="#e11d48" data-name="Carmesim Sóbrio" style="background-color: #e11d48;" title="Carmesim Sóbrio"></button>
@@ -330,7 +330,7 @@ class SettingsModal {
     this.dom.theme.value = s.theme || 'dark';
 
     // Accent Color
-    const activeAccent = (s.accentColor || '#38bdf8').toLowerCase();
+    const activeAccent = (s.accentColor || '#1ed760').toLowerCase();
     this.dom.accentSwatches?.forEach(btn => {
       const match = (btn.dataset.color || '').toLowerCase() === activeAccent;
       btn.classList.toggle('active', match);

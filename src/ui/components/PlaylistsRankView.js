@@ -2,6 +2,10 @@ const _TrackListPlaylist = typeof TrackList !== 'undefined'
   ? TrackList
   : (typeof require !== 'undefined' ? require('./TrackList') : null);
 
+const _PlaylistCoverService = typeof PlaylistCoverService !== 'undefined'
+  ? PlaylistCoverService
+  : (typeof require !== 'undefined' ? require('../../services/playlistCoverService') : null);
+
 class PlaylistsRankView {
   constructor(appContext) {
     this.app = appContext;
@@ -10,6 +14,17 @@ class PlaylistsRankView {
     this.topTracks = [];
     this.selectedPlaylist = null;
     this.sortBy = 'created';
+  }
+
+  async selectPlaylist(playlistId) {
+    if (!this.playlists || this.playlists.length === 0) {
+      await this.loadPlaylists();
+    }
+    const pl = this.playlists.find(p => p.id === playlistId);
+    if (pl) {
+      this.selectedPlaylist = pl;
+      this.renderPlaylistsList();
+    }
   }
 
   mount(containerElement) {
@@ -155,12 +170,17 @@ class PlaylistsRankView {
     this.playlists.forEach((pl, idx) => {
       const trackCount = pl.trackIds ? pl.trackIds.length : 0;
       html += `
-        <div class="playlist-item" data-id="${pl.id}">
-          <div class="playlist-meta" style="flex: 1;">
-            <h4>${pl.name}</h4>
+        <div class="playlist-item" data-id="${pl.id}" style="display: flex; align-items: center; padding: 8px 12px; gap: 12px;">
+          <div class="playlist-thumb-box" id="pl-thumb-${pl.id}" style="width: 44px; height: 44px; min-width: 44px; border-radius: 4px; overflow: hidden; background: #242424; flex-shrink: 0;">
+            <div class="playlist-cover-empty" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #888;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            </div>
+          </div>
+          <div class="playlist-meta" style="flex: 1; min-width: 0;">
+            <h4 style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this._escapeHtml(pl.name)}</h4>
             <span>${trackCount} música${trackCount === 1 ? '' : 's'}</span>
           </div>
-          <div style="display: flex; gap: 4px;">
+          <div style="display: flex; gap: 4px; flex-shrink: 0;">
             ${this.sortBy === 'manual' ? `
               <button class="btn-icon btn-pl-up" title="Mover para cima" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
@@ -181,6 +201,19 @@ class PlaylistsRankView {
     });
 
     listEl.innerHTML = html;
+
+    // Asynchronously load thumbnail covers
+    this.playlists.forEach(async (pl) => {
+      if (typeof window !== 'undefined' && window.api?.getPlaylistTracks) {
+        try {
+          const tracks = await window.api.getPlaylistTracks(pl.id);
+          const thumbEl = listEl.querySelector(`#pl-thumb-${pl.id}`);
+          if (thumbEl && _PlaylistCoverService) {
+            thumbEl.innerHTML = _PlaylistCoverService.getCoverHtml(pl, tracks);
+          }
+        } catch (e) {}
+      }
+    });
 
     listEl.querySelectorAll('.playlist-item').forEach(item => {
       const plId = item.dataset.id;
@@ -251,29 +284,54 @@ class PlaylistsRankView {
   }
 
   async renderPlaylistDetail(container) {
-    const tracks = await window.api.getPlaylistTracks(this.selectedPlaylist.id);
+    const tracks = (typeof window !== 'undefined' && window.api?.getPlaylistTracks)
+      ? await window.api.getPlaylistTracks(this.selectedPlaylist.id)
+      : [];
+
+    const coverHtml = _PlaylistCoverService
+      ? _PlaylistCoverService.getCoverHtml(this.selectedPlaylist, tracks)
+      : '';
 
     if (tracks.length === 0) {
       container.innerHTML = `
-        <div class="empty-state" style="padding: 20px 0;">
+        <div class="playlist-detail-hero" style="display: flex; gap: 20px; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+          <div class="playlist-detail-cover" style="width: 130px; height: 130px; min-width: 130px; border-radius: 6px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+            ${coverHtml}
+          </div>
+          <div class="playlist-detail-info">
+            <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Playlist</span>
+            <h1 style="font-size: 1.8rem; font-weight: 900; margin: 4px 0 6px 0; color: #ffffff;">${this._escapeHtml(this.selectedPlaylist.name)}</h1>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">0 faixas</span>
+          </div>
+        </div>
+        <div class="empty-state" style="padding: 30px 0;">
           <p>Esta playlist está vazia.</p>
-          <span style="font-size: 0.8rem;">Adicione faixas a partir da Biblioteca.</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Adicione faixas a partir da Biblioteca.</span>
         </div>
       `;
       return;
     }
 
     container.innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 0.8rem; color: var(--text-muted);">${tracks.length} faixa${tracks.length === 1 ? '' : 's'}</span>
-        <button class="btn btn-primary btn-sm" id="btn-play-all-playlist" style="padding: 4px 12px; font-size: 0.78rem;">
-          Tocar Playlist
-        </button>
+      <div class="playlist-detail-hero" style="display: flex; gap: 20px; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+        <div class="playlist-detail-cover" style="width: 130px; height: 130px; min-width: 130px; border-radius: 6px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+          ${coverHtml}
+        </div>
+        <div class="playlist-detail-info">
+          <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Playlist</span>
+          <h1 style="font-size: 1.8rem; font-weight: 900; margin: 4px 0 6px 0; color: #ffffff;">${this._escapeHtml(this.selectedPlaylist.name)}</h1>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">${tracks.length} faixa${tracks.length === 1 ? '' : 's'}</span>
+            <button class="btn btn-primary btn-sm" id="btn-play-all-playlist" style="padding: 6px 18px; font-weight: 700;">
+              Tocar Playlist
+            </button>
+          </div>
+        </div>
       </div>
       <div id="playlist-tracklist-container" style="flex: 1; overflow-y: auto;"></div>
     `;
 
-    container.querySelector('#btn-play-all-playlist').addEventListener('click', () => {
+    container.querySelector('#btn-play-all-playlist')?.addEventListener('click', () => {
       this.app.setQueueAndPlay(tracks, 0);
     });
 
@@ -287,14 +345,23 @@ class PlaylistsRankView {
       },
       onReorderTracks: async (newTrackIds) => {
         this.selectedPlaylist.trackIds = newTrackIds;
-        await window.api.reorderPlaylistTracks(this.selectedPlaylist.id, newTrackIds);
+        if (typeof window !== 'undefined' && window.api?.reorderPlaylistTracks) {
+          await window.api.reorderPlaylistTracks(this.selectedPlaylist.id, newTrackIds);
+        }
+        // Re-render detail to dynamically update 2x2 mosaic cover with new track order
+        await this.renderPlaylistDetail(container);
+        this.app.views?.libraryRail?.loadPlaylists?.();
       },
       onTrackRemoved: async (track, idx) => {
         const foundIdx = this.selectedPlaylist.trackIds.indexOf(track.filePath);
         if (foundIdx !== -1) {
-          await window.api.removeTrackFromPlaylist(this.selectedPlaylist.id, foundIdx);
+          if (typeof window !== 'undefined' && window.api?.removeTrackFromPlaylist) {
+            await window.api.removeTrackFromPlaylist(this.selectedPlaylist.id, foundIdx);
+          }
           this.selectedPlaylist.trackIds.splice(foundIdx, 1);
-          this.renderPlaylistDetail(container);
+          // Re-render detail to dynamically update 2x2 mosaic cover
+          await this.renderPlaylistDetail(container);
+          this.app.views?.libraryRail?.loadPlaylists?.();
         }
       }
     });
@@ -302,6 +369,14 @@ class PlaylistsRankView {
     this.trackList = plTrackList;
     plTrackList.setTracks(tracks);
     plTrackList.render(trackListEl);
+  }
+
+  _escapeHtml(str) {
+    return (str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   renderTopTracks() {

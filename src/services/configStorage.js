@@ -4,7 +4,7 @@
 class ConfigStorage {
   static DEFAULT_CONFIG = {
     theme: 'dark', // 'dark' | 'light' | 'system'
-    accentColor: '#2563eb', // Default industrial deep ocean cobalt blue
+    accentColor: '#1ed760', // Default Spotify Green
     crossfadeSeconds: 3,
     volume: 0.8,
     repeatMode: 'repeat-all',
@@ -14,11 +14,12 @@ class ConfigStorage {
     backgroundDim: 0.4, // 0.0 to 0.9 overlay opacity
     libraryFolders: [],
     volumeNormalization: false,
-    favorites: []
+    favorites: [],
+    audioOutputSinkId: 'default'
   };
 
   static ACCENT_PRESETS = [
-    { id: 'cobalt', label: 'Azul Cobalto', hex: '#2563eb', hover: '#1d4ed8', subtle: 'rgba(37, 99, 235, 0.15)', contrast: '#ffffff' },
+    { id: 'spotify', label: 'Verde Spotify', hex: '#1ed760', hover: '#1db954', subtle: 'rgba(30, 215, 96, 0.15)', contrast: '#000000' },
     { id: 'amber', label: 'Laranja Âmbar', hex: '#f59e0b', hover: '#d97706', subtle: 'rgba(245, 158, 11, 0.15)', contrast: '#1c1000' },
     { id: 'emerald', label: 'Verde Esmeralda', hex: '#10b981', hover: '#059669', subtle: 'rgba(16, 185, 129, 0.15)', contrast: '#ffffff' },
     { id: 'crimson', label: 'Carmesim Sóbrio', hex: '#e11d48', hover: '#be123c', subtle: 'rgba(225, 29, 72, 0.15)', contrast: '#ffffff' },
@@ -80,6 +81,10 @@ class ConfigStorage {
 
     if (Array.isArray(partial.favorites)) {
       next.favorites = Array.from(new Set(partial.favorites.filter(p => typeof p === 'string' && p.trim())));
+    }
+
+    if (typeof partial.audioOutputSinkId === 'string' && partial.audioOutputSinkId.trim()) {
+      next.audioOutputSinkId = partial.audioOutputSinkId.trim();
     }
 
     return next;

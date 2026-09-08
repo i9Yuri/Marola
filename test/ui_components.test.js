@@ -283,5 +283,45 @@ describe('UI Components Lifecycle & Instantiation', () => {
     assert.ok(cssContent.includes('aspect-ratio: 1 / 1;'));
     assert.ok(cssContent.includes('object-fit: cover;'));
     assert.ok(cssContent.includes('--player-bar-height: 88px;'));
+    assert.ok(cssContent.includes('grid-template-columns: repeat(4, 1fr);'));
+    assert.ok(cssContent.includes('padding-right: 56px;'));
+  });
+
+  test('PlayerBar includes Audio Output Sink selector and popover', () => {
+    const pBar = new PlayerBar(mockAudioEngine, queueManager);
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: (sel) => {
+        if (sel === '#btn-audio-sink') return { addEventListener: () => {} };
+        if (sel === '#audio-sink-popover') return { addEventListener: () => {} };
+        if (sel === '#audio-sink-list') return { innerHTML: '' };
+        return null;
+      },
+      querySelectorAll: () => []
+    };
+    pBar.mount(dummyContainer);
+
+    assert.ok(dummyContainer.innerHTML.includes('id="btn-audio-sink"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="audio-sink-popover"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="audio-sink-list"'));
+    assert.ok(pBar.dom.btnAudioSink);
+    assert.ok(pBar.dom.audioSinkPopover);
+  });
+
+  test('HomeRecentView contains Top Tracks, Artists, and Albums carousels', () => {
+    const homeView = new HomeRecentView(mockApp);
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    homeView.mount(dummyContainer);
+
+    assert.ok(dummyContainer.innerHTML.includes('id="section-top-tracks"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="top-tracks-carousel"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="section-artists"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="artists-carousel"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="section-albums"'));
+    assert.ok(dummyContainer.innerHTML.includes('id="albums-carousel"'));
   });
 });
