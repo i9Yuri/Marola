@@ -27,6 +27,11 @@ function createWindow() {
   });
 
   mainWindow.setMenuBarVisibility(false);
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console ${level}] ${message} at ${sourceId}:${line}`);
+  });
+
   mainWindow.loadFile(path.join(__dirname, '../ui/index.html'));
 
   mainWindow.on('closed', () => {

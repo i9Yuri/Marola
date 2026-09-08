@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JustPlay - Player de Música Offline</title>
   <link rel="stylesheet" href="styles.css">
+  <script>
+    window.addEventListener('error', (e) => {
+      console.error('[UNCAUGHT ERROR]', e.message, 'at', e.filename, 'line', e.lineno, 'col', e.colno, e.error?.stack);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[UNHANDLED PROMISE REJECTION]', e.reason?.stack || e.reason);
+    });
+  </script>
 </head>
 <body>
   <!-- Custom Background Layers -->

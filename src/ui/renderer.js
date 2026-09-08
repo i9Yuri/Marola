@@ -1,7 +1,7 @@
 /**
  * Main application frontend coordinator
  */
-document.addEventListener('DOMContentLoaded', async () => {
+async function initApp() {
   // Initialize Managers
   const queueManager = new QueueManager();
 
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Renderer] Failed to load remote settings/favorites:', err);
   }
 
-  // Mount Views
+  // Mount Views defensively
   const recentViewContainer = document.getElementById('view-recent-container');
   const playlistsViewContainer = document.getElementById('view-playlists-container');
   const queueDrawerContainer = document.getElementById('queue-drawer-container');
@@ -221,40 +221,81 @@ document.addEventListener('DOMContentLoaded', async () => {
   const settingsModalContainer = document.getElementById('settings-modal-container');
   const playerBarContainer = document.getElementById('player-bar');
 
-  const homeRecentView = new HomeRecentView(app);
-  const playlistsRankView = new PlaylistsRankView(app);
-  const queueView = new QueueView(app);
-  const lyricsView = new LyricsView(app);
-  const nowPlayingView = new NowPlayingView(app);
-  const settingsModal = new SettingsModal(app);
+  let homeRecentView = null;
+  let playlistsRankView = null;
+  let queueView = null;
+  let lyricsView = null;
+  let nowPlayingView = null;
+  let settingsModal = null;
+  let playerBar = null;
 
-  app.views.recent = homeRecentView;
-  app.views.playlists = playlistsRankView;
-  app.views.queue = queueView;
-  app.views.lyrics = lyricsView;
-  app.views.nowPlaying = nowPlayingView;
-  app.views.settings = settingsModal;
+  try {
+    homeRecentView = new HomeRecentView(app);
+    app.views.recent = homeRecentView;
+    if (recentViewContainer) homeRecentView.mount(recentViewContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting HomeRecentView:', e);
+  }
 
-  homeRecentView.mount(recentViewContainer);
-  playlistsRankView.mount(playlistsViewContainer);
-  queueView.mount(queueDrawerContainer);
-  lyricsView.mount(lyricsDrawerContainer);
-  nowPlayingView.mount(nowPlayingContainer);
-  settingsModal.mount(settingsModalContainer);
+  try {
+    playlistsRankView = new PlaylistsRankView(app);
+    app.views.playlists = playlistsRankView;
+    if (playlistsViewContainer) playlistsRankView.mount(playlistsViewContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting PlaylistsRankView:', e);
+  }
 
-  const playerBar = new PlayerBar(audioEngine, queueManager, {
-    onToggleQueue: () => queueView.toggle(),
-    onToggleLyrics: () => lyricsView.toggle(),
-    onOpenNowPlaying: () => nowPlayingView.open(),
-    onOpenSettings: () => settingsModal.open()
-  });
-  playerBar.mount(playerBarContainer);
+  try {
+    queueView = new QueueView(app);
+    app.views.queue = queueView;
+    if (queueDrawerContainer) queueView.mount(queueDrawerContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting QueueView:', e);
+  }
+
+  try {
+    lyricsView = new LyricsView(app);
+    app.views.lyrics = lyricsView;
+    if (lyricsDrawerContainer) lyricsView.mount(lyricsDrawerContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting LyricsView:', e);
+  }
+
+  try {
+    nowPlayingView = new NowPlayingView(app);
+    app.views.nowPlaying = nowPlayingView;
+    if (nowPlayingContainer) nowPlayingView.mount(nowPlayingContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting NowPlayingView:', e);
+  }
+
+  try {
+    settingsModal = new SettingsModal(app);
+    app.views.settings = settingsModal;
+    if (settingsModalContainer) settingsModal.mount(settingsModalContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting SettingsModal:', e);
+  }
+
+  try {
+    playerBar = new PlayerBar(audioEngine, queueManager, {
+      onToggleQueue: () => queueView?.toggle(),
+      onToggleLyrics: () => lyricsView?.toggle(),
+      onOpenNowPlaying: () => nowPlayingView?.open(),
+      onOpenSettings: () => settingsModal?.open()
+    });
+    if (playerBarContainer) playerBar.mount(playerBarContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting PlayerBar:', e);
+  }
 
   // Settings button in sidebar
   const navBtnSettings = document.getElementById('nav-btn-settings');
   if (navBtnSettings) {
     navBtnSettings.addEventListener('click', () => {
-      settingsModal.open();
+      if (settingsModal) {
+        settingsModal.open();
+      }
     });
   }
 
@@ -269,26 +310,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       app.currentView = target;
 
       if (target === 'recent') {
-        recentViewContainer.style.display = 'flex';
-        playlistsViewContainer.style.display = 'none';
-        homeRecentView.loadTracks();
+        if (recentViewContainer) recentViewContainer.style.display = 'flex';
+        if (playlistsViewContainer) playlistsViewContainer.style.display = 'none';
+        if (homeRecentView) homeRecentView.loadTracks();
       } else if (target === 'playlists') {
-        recentViewContainer.style.display = 'none';
-        playlistsViewContainer.style.display = 'flex';
-        playlistsRankView.loadData();
+        if (recentViewContainer) recentViewContainer.style.display = 'none';
+        if (playlistsViewContainer) playlistsViewContainer.style.display = 'flex';
+        if (playlistsRankView) playlistsRankView.loadData();
       }
     });
   });
 
   // When play_count updates at 50% threshold, reload Top Tracks ranking if viewing it
   audioEngine.on('trackPlayedHalf', () => {
-    if (app.currentView === 'playlists') {
+    if (app.currentView === 'playlists' && playlistsRankView) {
       playlistsRankView.loadTopTracks();
     }
   });
 
   // Save settings when mode changes
   queueManager.on('modeChanged', ({ repeatMode, shuffle }) => {
-    window.api.updateSettings({ repeatMode, shuffle });
+    window.api?.updateSettings({ repeatMode, shuffle });
   });
-});
+
+  console.log('[JustPlay] App initialized successfully.');
+}
+
+// Ensure startup triggers regardless of document readyState
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}

@@ -171,62 +171,63 @@ class SettingsModal {
   }
 
   _bindEvents() {
-    this.dom.btnClose.addEventListener('click', () => this.close());
-    this.dom.btnDone.addEventListener('click', () => this.close());
+    this.dom.btnClose?.addEventListener('click', () => this.close());
+    this.dom.btnDone?.addEventListener('click', () => this.close());
 
     // Click outside modal card to close
-    this.container.addEventListener('click', (e) => {
+    this.container?.addEventListener('click', (e) => {
       if (e.target === this.container) this.close();
     });
 
     // Crossfade change
-    this.dom.crossfade.addEventListener('input', (e) => {
+    this.dom.crossfade?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
-      this.dom.crossfadeVal.textContent = `${val.toFixed(1)}s`;
-      this.app.audioEngine.setCrossfade(val);
-      window.api.updateSettings({ crossfadeSeconds: val });
+      if (this.dom.crossfadeVal) this.dom.crossfadeVal.textContent = `${val.toFixed(1)}s`;
+      this.app.audioEngine?.setCrossfade(val);
+      window.api?.updateSettings({ crossfadeSeconds: val });
     });
 
     // Volume Normalization toggle
-    this.dom.normalization.addEventListener('change', (e) => {
+    this.dom.normalization?.addEventListener('change', (e) => {
       const enabled = e.target.checked;
-      window.api.updateSettings({ volumeNormalization: enabled });
+      window.api?.updateSettings({ volumeNormalization: enabled });
       this.app.showToast(enabled ? 'Normalização de volume ativada' : 'Normalização de volume desativada');
     });
 
     // Theme change
-    this.dom.theme.addEventListener('change', (e) => {
+    this.dom.theme?.addEventListener('change', (e) => {
       const theme = e.target.value;
-      window.api.updateSettings({ theme });
+      window.api?.updateSettings({ theme });
       this.app.applyTheme(theme);
     });
 
     // Background Image
-    this.dom.btnChooseBg.addEventListener('click', async () => {
+    this.dom.btnChooseBg?.addEventListener('click', async () => {
       const imgPath = await window.api.openImageDialog();
       if (imgPath) {
         window.api.updateSettings({ backgroundImage: imgPath });
-        this.app.applyBackground(imgPath, parseFloat(this.dom.dimmer.value));
-        this._syncBgUi(imgPath, parseFloat(this.dom.dimmer.value));
+        const dimVal = this.dom.dimmer ? parseFloat(this.dom.dimmer.value) : 0.4;
+        this.app.applyBackground(imgPath, dimVal);
+        this._syncBgUi(imgPath, dimVal);
       }
     });
 
-    this.dom.btnResetBg.addEventListener('click', () => {
-      window.api.updateSettings({ backgroundImage: null });
+    this.dom.btnResetBg?.addEventListener('click', () => {
+      window.api?.updateSettings({ backgroundImage: null });
       this.app.applyBackground(null, 0.4);
       this._syncBgUi(null, 0.4);
     });
 
     // Dimmer
-    this.dom.dimmer.addEventListener('input', (e) => {
+    this.dom.dimmer?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
-      this.dom.dimmerVal.textContent = `${Math.round(val * 100)}%`;
-      window.api.updateSettings({ backgroundDim: val });
+      if (this.dom.dimmerVal) this.dom.dimmerVal.textContent = `${Math.round(val * 100)}%`;
+      window.api?.updateSettings({ backgroundDim: val });
       this.app.applyBackground(this.currentSettings.backgroundImage, val);
     });
 
     // Add Library Directory
-    this.dom.btnAddDir.addEventListener('click', async () => {
+    this.dom.btnAddDir?.addEventListener('click', async () => {
       const folder = await window.api.openFolderDialog();
       if (folder) {
         const folders = await window.api.addLibraryFolder(folder);
@@ -245,7 +246,7 @@ class SettingsModal {
     });
 
     // Rescan all folders
-    this.dom.btnRescanAll.addEventListener('click', async () => {
+    this.dom.btnRescanAll?.addEventListener('click', async () => {
       const folders = this.currentSettings.libraryFolders || [];
       if (folders.length === 0) {
         this.app.showToast('Nenhuma pasta monitorada configurada.');

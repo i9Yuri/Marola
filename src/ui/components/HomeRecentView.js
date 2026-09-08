@@ -2,6 +2,10 @@
  * HomeRecentView: Library overview, recent files, directory scan and file imports,
  * using the reusable TrackList component with 3-state column sorting and contextual actions.
  */
+const _TrackListHome = typeof TrackList !== 'undefined'
+  ? TrackList
+  : (typeof require !== 'undefined' ? require('./TrackList') : null);
+
 class HomeRecentView {
   constructor(appContext) {
     this.app = appContext;
@@ -9,7 +13,7 @@ class HomeRecentView {
     this.filteredTracks = [];
     this.container = null;
     this.searchTerm = '';
-    this.trackList = new TrackList(this.app, {
+    this.trackList = new _TrackListHome(this.app, {
       showIndexColumn: false,
       onPlayTrack: (track, list, index) => {
         this.app.playTrackDirectly(track, list, index);
@@ -59,46 +63,83 @@ class HomeRecentView {
     const btnFiles = this.container.querySelector('#btn-add-files');
     const searchInput = this.container.querySelector('#library-search');
 
-    btnFolder.addEventListener('click', async () => {
-      const folder = await window.api.openFolderDialog();
-      if (folder) {
-        this.app.showToast('Escaneando pasta de músicas...');
-        // Also add to monitored library folders
-        await window.api.addLibraryFolder(folder);
-        const audioFiles = await window.api.scanFolder(folder);
-        if (audioFiles.length > 0) {
-          this.app.showToast(`Importando metadados de ${audioFiles.length} faixas...`);
-          const parsed = await window.api.parseMetadataBatch(audioFiles);
-          this.app.showToast(`${parsed.length} faixas adicionadas à biblioteca!`);
-          await this.loadTracks();
-        } else {
-          this.app.showToast('Nenhum arquivo de áudio suportado encontrado na pasta.');
+    if (btnFolder) {
+      btnFolder.addEventListener('click', async () => {
+        const folder = await window.api.openFolderDialog();
+        if (folder) {
+          this.app.showToast('Escaneando pasta de músicas...');
+          // Also add to monitored library folders
+          await window.api.addLibraryFolder(folder);
+          const audioFiles = await window.api.scanFolder(folder);
+          if (audioFiles.length > 0) {
+            this.app.showToast(`Importando metadados de ${audioFiles.length} faixas...`);
+            const parsed = await window.api.parseMetadataBatch(audioFiles);
+            this.app.showToast(`${parsed.length} faixas adicionadas à biblioteca!`);
+            await this.loadTracks();
+          } else {
+            this.app.showToast('Nenhum arquivo de áudio suportado encontrado na pasta.');
+          }
         }
-      }
-    });
+      });
+    }
 
-    btnFiles.addEventListener('click', async () => {
-      const files = await window.api.openFilesDialog();
-      if (files && files.length > 0) {
-        this.app.showToast(`Processando ${files.length} arquivos...`);
-        const parsed = await window.api.parseMetadataBatch(files);
-        this.app.showToast(`${parsed.length} faixas adicionadas!`);
-        await this.loadTracks();
-      }
-    });
+    if (btnFiles) {
+      btnFiles.addEventListener('click', async () => {
+        const files = await window.api.openFilesDialog();
+        if (files && files.length > 0) {
+          this.app.showToast(`Processando ${files.length} arquivos...`);
+          const parsed = await window.api.parseMetadataBatch(files);
+          this.app.showToast(`${parsed.length} faixas adicionadas!`);
+          await this.loadTracks();
+        }
+      });
+    }
 
-    searchInput.addEventListener('input', (e) => {
-      this.searchTerm = e.target.value.toLowerCase().trim();
-      this.filterAndRender();
-    });
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.searchTerm = e.target.value.toLowerCase().trim();
+        this.filterAndRender();
+      });
+    }
   }
 
   async loadTracks() {
-    this.tracks = await window.api.getRecentTracks(500);
+    try {
+      const res = await window.api.getRecentTracks(500);
+      this.tracks = Array.isArray(res) ? res : [];
+
+      // If library has no tracks yet, auto-scan previously configured library folders
+      if (this.tracks.length === 0) {
+        const settings = await window.api.getSettings();
+        const folders = settings?.libraryFolders || [];
+        if (folders.length > 0) {
+          let anyIndexed = false;
+          for (const f of folders) {
+            const audioFiles = await window.api.scanFolder(f);
+            if (audioFiles && audioFiles.length > 0) {
+              await window.api.parseMetadataBatch(audioFiles);
+              anyIndexed = true;
+            }
+          }
+          if (anyIndexed) {
+            const refreshed = await window.api.getRecentTracks(500);
+            this.tracks = Array.isArray(refreshed) ? refreshed : [];
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[HomeRecentView] Error loading tracks:', err);
+      this.tracks = [];
+    }
+
     this.filterAndRender();
   }
 
   filterAndRender() {
+    if (!Array.isArray(this.tracks)) {
+      this.tracks = [];
+    }
+
     if (!this.searchTerm) {
       this.filteredTracks = [...this.tracks];
     } else {
@@ -109,12 +150,12 @@ class HomeRecentView {
       );
     }
 
-    const countText = this.container.querySelector('#library-count-text');
+    const countText = this.container?.querySelector('#library-count-text');
     if (countText) {
       countText.textContent = `${this.tracks.length} faixa${this.tracks.length === 1 ? '' : 's'} na sua biblioteca`;
     }
 
-    const body = this.container.querySelector('#library-body');
+    const body = this.container?.querySelector('#library-body');
     if (!body) return;
 
     this.trackList.setTracks(this.filteredTracks);

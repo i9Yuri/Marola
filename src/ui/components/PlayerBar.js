@@ -112,46 +112,47 @@ class PlayerBar {
   }
 
   _bindEvents() {
-    this.dom.btnPlayPause.addEventListener('click', () => this.audioEngine.togglePlayPause());
-    this.dom.btnNext.addEventListener('click', () => this.audioEngine.next());
-    this.dom.btnPrev.addEventListener('click', () => this.audioEngine.previous());
+    this.dom.btnPlayPause?.addEventListener('click', () => this.audioEngine.togglePlayPause());
+    this.dom.btnNext?.addEventListener('click', () => this.audioEngine.next());
+    this.dom.btnPrev?.addEventListener('click', () => this.audioEngine.previous());
 
-    this.dom.btnShuffle.addEventListener('click', () => {
+    this.dom.btnShuffle?.addEventListener('click', () => {
       const active = this.queueManager.toggleShuffle();
-      this.dom.btnShuffle.classList.toggle('active', active);
+      this.dom.btnShuffle?.classList.toggle('active', active);
     });
 
-    this.dom.btnRepeat.addEventListener('click', () => {
+    this.dom.btnRepeat?.addEventListener('click', () => {
       const mode = this.queueManager.toggleRepeatMode();
       this._updateRepeatUi(mode);
     });
 
     // Now Playing expansion trigger
-    this.dom.trackInfoTrigger.addEventListener('click', () => this.onOpenNowPlaying());
+    this.dom.trackInfoTrigger?.addEventListener('click', () => this.onOpenNowPlaying());
 
     // Settings modal trigger
-    this.dom.btnSettings.addEventListener('click', () => this.onOpenSettings());
+    this.dom.btnSettings?.addEventListener('click', () => this.onOpenSettings());
 
     // Volume slider
-    this.dom.volumeSlider.addEventListener('input', (e) => {
+    this.dom.volumeSlider?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
       this.audioEngine.setVolume(val);
     });
 
-    this.dom.btnMute.addEventListener('click', () => {
+    this.dom.btnMute?.addEventListener('click', () => {
       if (this.audioEngine.volume > 0) {
         this.prevVolume = this.audioEngine.volume;
         this.audioEngine.setVolume(0);
-        this.dom.volumeSlider.value = 0;
+        if (this.dom.volumeSlider) this.dom.volumeSlider.value = 0;
       } else {
         const restore = this.prevVolume || 0.8;
         this.audioEngine.setVolume(restore);
-        this.dom.volumeSlider.value = restore;
+        if (this.dom.volumeSlider) this.dom.volumeSlider.value = restore;
       }
     });
 
     // Progress bar seeking
     const handleSeek = (e) => {
+      if (!this.dom.progressBar) return;
       const rect = this.dom.progressBar.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const pct = clickX / rect.width;
@@ -159,12 +160,12 @@ class PlayerBar {
       if (active?.audio && !isNaN(active.audio.duration)) {
         const targetSec = pct * active.audio.duration;
         this.audioEngine.seek(targetSec);
-        this.dom.progressFill.style.width = `${pct * 100}%`;
-        this.dom.timeCurrent.textContent = this._formatTime(targetSec);
+        if (this.dom.progressFill) this.dom.progressFill.style.width = `${pct * 100}%`;
+        if (this.dom.timeCurrent) this.dom.timeCurrent.textContent = this._formatTime(targetSec);
       }
     };
 
-    this.dom.progressBar.addEventListener('mousedown', (e) => {
+    this.dom.progressBar?.addEventListener('mousedown', (e) => {
       this.isDraggingSeek = true;
       handleSeek(e);
     });
@@ -178,8 +179,8 @@ class PlayerBar {
     });
 
     // Drawers toggle
-    this.dom.btnLyrics.addEventListener('click', () => this.onToggleLyrics());
-    this.dom.btnQueue.addEventListener('click', () => this.onToggleQueue());
+    this.dom.btnLyrics?.addEventListener('click', () => this.onToggleLyrics());
+    this.dom.btnQueue?.addEventListener('click', () => this.onToggleQueue());
 
     // Audio Engine Listeners
     this.audioEngine.on('stateChange', ({ isPlaying, volume }) => {

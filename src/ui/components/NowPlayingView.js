@@ -125,9 +125,10 @@ class NowPlayingView {
   }
 
   _bindEvents() {
-    this.dom.btnClose.addEventListener('click', () => this.close());
+    this.dom.btnClose?.addEventListener('click', () => this.close());
 
-    this.dom.btnToggleMode.addEventListener('click', () => {
+    this.dom.btnToggleMode?.addEventListener('click', () => {
+      if (!this.dom.lyricsContainer || !this.dom.coverContainer) return;
       if (this.dom.lyricsContainer.style.display === 'none') {
         this.dom.lyricsContainer.style.display = 'flex';
         this.dom.coverContainer.style.display = 'none';
@@ -139,27 +140,28 @@ class NowPlayingView {
       }
     });
 
-    this.dom.btnPlayPause.addEventListener('click', () => this.app.audioEngine.togglePlayPause());
-    this.dom.btnNext.addEventListener('click', () => this.app.audioEngine.next());
-    this.dom.btnPrev.addEventListener('click', () => this.app.audioEngine.previous());
+    this.dom.btnPlayPause?.addEventListener('click', () => this.app.audioEngine.togglePlayPause());
+    this.dom.btnNext?.addEventListener('click', () => this.app.audioEngine.next());
+    this.dom.btnPrev?.addEventListener('click', () => this.app.audioEngine.previous());
 
-    this.dom.btnShuffle.addEventListener('click', () => {
+    this.dom.btnShuffle?.addEventListener('click', () => {
       const active = this.app.queueManager.toggleShuffle();
-      this.dom.btnShuffle.classList.toggle('active', active);
+      this.dom.btnShuffle?.classList.toggle('active', active);
     });
 
-    this.dom.btnRepeat.addEventListener('click', () => {
+    this.dom.btnRepeat?.addEventListener('click', () => {
       const mode = this.app.queueManager.toggleRepeatMode();
       this._updateRepeatUi(mode);
     });
 
-    this.dom.volumeSlider.addEventListener('input', (e) => {
+    this.dom.volumeSlider?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
       this.app.audioEngine.setVolume(val);
     });
 
     // Seeking on expanded progress bar
     const handleSeek = (e) => {
+      if (!this.dom.progressBar) return;
       const rect = this.dom.progressBar.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const pct = clickX / rect.width;
@@ -167,12 +169,12 @@ class NowPlayingView {
       if (active?.audio && !isNaN(active.audio.duration)) {
         const targetSec = pct * active.audio.duration;
         this.app.audioEngine.seek(targetSec);
-        this.dom.progressFill.style.width = `${pct * 100}%`;
-        this.dom.timeCurrent.textContent = this._formatTime(targetSec);
+        if (this.dom.progressFill) this.dom.progressFill.style.width = `${pct * 100}%`;
+        if (this.dom.timeCurrent) this.dom.timeCurrent.textContent = this._formatTime(targetSec);
       }
     };
 
-    this.dom.progressBar.addEventListener('mousedown', (e) => {
+    this.dom.progressBar?.addEventListener('mousedown', (e) => {
       this.isDraggingSeek = true;
       handleSeek(e);
     });

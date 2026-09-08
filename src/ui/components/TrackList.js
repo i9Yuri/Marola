@@ -84,6 +84,7 @@ class TrackList {
         <div class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
           <p style="font-size: 1.05rem; font-weight: 500;">Nenhuma faixa encontrada</p>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Clique em "Adicionar Pasta" ou "Adicionar Arquivos" para começar a ouvir.</span>
         </div>
       `;
       return;
@@ -302,7 +303,7 @@ class TrackList {
   }
 
   _escapeHtml(str) {
-    return str
+    return (str == null ? '' : String(str))
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')

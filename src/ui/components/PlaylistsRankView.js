@@ -1,6 +1,7 @@
-/**
- * PlaylistsRankView: User playlists CRUD, ordering, and Top Tracks ranking (play_count DESC)
- */
+const _TrackListPlaylist = typeof TrackList !== 'undefined'
+  ? TrackList
+  : (typeof require !== 'undefined' ? require('./TrackList') : null);
+
 class PlaylistsRankView {
   constructor(appContext) {
     this.app = appContext;
@@ -70,10 +71,10 @@ class PlaylistsRankView {
   }
 
   _bindEvents() {
-    const btnCreate = this.container.querySelector('#btn-create-playlist');
-    const sortSelect = this.container.querySelector('#playlist-sort-select');
+    const btnCreate = this.container?.querySelector('#btn-create-playlist');
+    const sortSelect = this.container?.querySelector('#playlist-sort-select');
 
-    btnCreate.addEventListener('click', () => {
+    btnCreate?.addEventListener('click', () => {
       this.app.openCreatePlaylistModal(async (name) => {
         await window.api.createPlaylist(name);
         this.app.showToast(`Playlist "${name}" criada com sucesso!`);
@@ -81,7 +82,7 @@ class PlaylistsRankView {
       });
     });
 
-    sortSelect.addEventListener('change', async (e) => {
+    sortSelect?.addEventListener('change', async (e) => {
       this.sortBy = e.target.value;
       await window.api.updateSettings({ playlistSortBy: this.sortBy });
       await this.loadPlaylists();
@@ -93,12 +94,24 @@ class PlaylistsRankView {
   }
 
   async loadPlaylists() {
-    this.playlists = await window.api.getPlaylists(this.sortBy);
+    try {
+      const res = await window.api.getPlaylists(this.sortBy);
+      this.playlists = Array.isArray(res) ? res : [];
+    } catch (err) {
+      console.error('[PlaylistsRankView] Failed to load playlists:', err);
+      this.playlists = [];
+    }
     this.renderPlaylistsList();
   }
 
   async loadTopTracks() {
-    this.topTracks = await window.api.getTopTracks(50);
+    try {
+      const res = await window.api.getTopTracks(50);
+      this.topTracks = Array.isArray(res) ? res : [];
+    } catch (err) {
+      console.error('[PlaylistsRankView] Failed to load top tracks:', err);
+      this.topTracks = [];
+    }
     this.renderTopTracks();
   }
 
@@ -265,7 +278,7 @@ class PlaylistsRankView {
     });
 
     const trackListEl = container.querySelector('#playlist-tracklist-container');
-    const plTrackList = new TrackList(this.app, {
+    const plTrackList = new _TrackListPlaylist(this.app, {
       showIndexColumn: true,
       isPlaylist: true,
       playlistId: this.selectedPlaylist.id,
@@ -284,18 +297,6 @@ class PlaylistsRankView {
 
     plTrackList.setTracks(tracks);
     plTrackList.render(trackListEl);
-  }
-        btnDown.addEventListener('click', async () => {
-          const ids = [...this.selectedPlaylist.trackIds];
-          const temp = ids[idx];
-          ids[idx] = ids[idx + 1];
-          ids[idx + 1] = temp;
-          await window.api.reorderPlaylistTracks(this.selectedPlaylist.id, ids);
-          this.selectedPlaylist.trackIds = ids;
-          this.renderPlaylistDetail(container);
-        });
-      }
-    });
   }
 
   renderTopTracks() {
