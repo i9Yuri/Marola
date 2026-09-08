@@ -57,6 +57,27 @@ async function initApp() {
       }
     },
 
+    applyAccentColor(hex) {
+      if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+      const root = document.documentElement;
+      root.style.setProperty('--accent', hex);
+      root.style.setProperty('--accent-color', hex);
+
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+
+      const hoverHex = `rgb(${Math.max(0, Math.round(r * 0.85))}, ${Math.max(0, Math.round(g * 0.85))}, ${Math.max(0, Math.round(b * 0.85))})`;
+      const subtleRgba = `rgba(${r}, ${g}, ${b}, 0.15)`;
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const contrastText = luminance > 0.6 ? '#090d16' : '#ffffff';
+
+      root.style.setProperty('--accent-hover', hoverHex);
+      root.style.setProperty('--accent-subtle', subtleRgba);
+      root.style.setProperty('--accent-faded', subtleRgba);
+      root.style.setProperty('--accent-contrast-text', contrastText);
+    },
+
     applyBackground(imgPath, dim = 0.4) {
       const bgLayer = document.getElementById('app-bg-layer');
       const bgDimmer = document.getElementById('app-bg-dimmer');
@@ -204,6 +225,9 @@ async function initApp() {
       if (remoteSettings.theme) {
         app.applyTheme(remoteSettings.theme);
       }
+      if (remoteSettings.accentColor) {
+        app.applyAccentColor(remoteSettings.accentColor);
+      }
       if (remoteSettings.backgroundImage) {
         app.applyBackground(remoteSettings.backgroundImage, remoteSettings.backgroundDim ?? 0.4);
       }
@@ -326,6 +350,30 @@ async function initApp() {
     if (app.currentView === 'playlists' && playlistsRankView) {
       playlistsRankView.loadTopTracks();
     }
+  });
+
+  // Synchronize playing equalizer animation and paused state across views
+  const updateAllTrackLists = () => {
+    if (homeRecentView?.trackList?.updatePlayingState) {
+      homeRecentView.trackList.updatePlayingState();
+    }
+    if (playlistsRankView?.trackList?.updatePlayingState) {
+      playlistsRankView.trackList.updatePlayingState();
+    }
+  };
+
+  queueManager.on('currentTrackChanged', () => {
+    updateAllTrackLists();
+  });
+
+  audioEngine.on('stateChange', ({ isPlaying }) => {
+    document.querySelectorAll('.track-row.playing').forEach(row => {
+      if (isPlaying) {
+        row.classList.remove('paused');
+      } else {
+        row.classList.add('paused');
+      }
+    });
   });
 
   // Save settings when mode changes

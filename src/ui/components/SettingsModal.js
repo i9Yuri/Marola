@@ -76,6 +76,22 @@ class SettingsModal {
 
             <div class="settings-row">
               <div class="settings-label">
+                <strong>Cor de Destaque (Accent Color)</strong>
+                <span id="setting-accent-name">Azul Aço (#38bdf8)</span>
+              </div>
+              <div class="settings-control-inline">
+                <div class="accent-swatch-list" id="setting-accent-swatches">
+                  <button type="button" class="accent-swatch-btn active" data-color="#38bdf8" data-name="Azul Aço" style="background-color: #38bdf8;" title="Azul Aço"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#10b981" data-name="Verde Esmeralda" style="background-color: #10b981;" title="Verde Esmeralda"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#f59e0b" data-name="Âmbar Quente" style="background-color: #f59e0b;" title="Âmbar Quente"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#14b8a6" data-name="Teal Sóbrio" style="background-color: #14b8a6;" title="Teal Sóbrio"></button>
+                  <button type="button" class="accent-swatch-btn" data-color="#e4e4e7" data-name="Grafite Puro" style="background-color: #e4e4e7;" title="Grafite Puro"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-label">
                 <strong>Imagem de Plano de Fundo</strong>
                 <span id="setting-bg-status">Nenhuma imagem personalizada ativa</span>
               </div>
@@ -157,6 +173,8 @@ class SettingsModal {
       crossfadeVal: this.container.querySelector('#setting-crossfade-val'),
       normalization: this.container.querySelector('#setting-normalization'),
       theme: this.container.querySelector('#setting-theme'),
+      accentName: this.container.querySelector('#setting-accent-name'),
+      accentSwatches: this.container.querySelectorAll('.accent-swatch-btn'),
       btnChooseBg: this.container.querySelector('#setting-btn-choose-bg'),
       btnResetBg: this.container.querySelector('#setting-btn-reset-bg'),
       bgStatus: this.container.querySelector('#setting-bg-status'),
@@ -199,6 +217,18 @@ class SettingsModal {
       const theme = e.target.value;
       window.api?.updateSettings({ theme });
       this.app.applyTheme(theme);
+    });
+
+    // Accent Color change
+    this.dom.accentSwatches?.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        const name = btn.dataset.name;
+        this.dom.accentSwatches.forEach(b => b.classList.toggle('active', b === btn));
+        if (this.dom.accentName) this.dom.accentName.textContent = `${name} (${color})`;
+        this.app.applyAccentColor(color);
+        window.api?.updateSettings({ accentColor: color });
+      });
     });
 
     // Background Image
@@ -298,6 +328,16 @@ class SettingsModal {
 
     // Theme
     this.dom.theme.value = s.theme || 'dark';
+
+    // Accent Color
+    const activeAccent = (s.accentColor || '#38bdf8').toLowerCase();
+    this.dom.accentSwatches?.forEach(btn => {
+      const match = (btn.dataset.color || '').toLowerCase() === activeAccent;
+      btn.classList.toggle('active', match);
+      if (match && this.dom.accentName) {
+        this.dom.accentName.textContent = `${btn.dataset.name} (${btn.dataset.color})`;
+      }
+    });
 
     // Background & Dimmer
     this._syncBgUi(s.backgroundImage, s.backgroundDim);

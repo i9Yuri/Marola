@@ -4,6 +4,7 @@
 class ConfigStorage {
   static DEFAULT_CONFIG = {
     theme: 'dark', // 'dark' | 'light' | 'system'
+    accentColor: '#38bdf8', // Default industrial steel blue
     crossfadeSeconds: 3,
     volume: 0.8,
     repeatMode: 'repeat-all',
@@ -16,6 +17,14 @@ class ConfigStorage {
     favorites: []
   };
 
+  static ACCENT_PRESETS = [
+    { id: 'blue', label: 'Azul Aço', hex: '#38bdf8', hover: '#0ea5e9', subtle: 'rgba(56, 189, 248, 0.15)', contrast: '#031424' },
+    { id: 'emerald', label: 'Verde Esmeralda', hex: '#10b981', hover: '#059669', subtle: 'rgba(16, 185, 129, 0.15)', contrast: '#022115' },
+    { id: 'amber', label: 'Âmbar Quente', hex: '#f59e0b', hover: '#d97706', subtle: 'rgba(245, 158, 11, 0.15)', contrast: '#251500' },
+    { id: 'teal', label: 'Teal Sóbrio', hex: '#14b8a6', hover: '#0d9488', subtle: 'rgba(20, 184, 166, 0.15)', contrast: '#01201c' },
+    { id: 'zinc', label: 'Grafite Puro', hex: '#e4e4e7', hover: '#a1a1aa', subtle: 'rgba(228, 228, 231, 0.15)', contrast: '#18181b' }
+  ];
+
   /**
    * Sanitizes and validates a partial settings object.
    * @param {Object} partial
@@ -27,6 +36,10 @@ class ConfigStorage {
 
     if (['dark', 'light', 'system'].includes(partial.theme)) {
       next.theme = partial.theme;
+    }
+
+    if (typeof partial.accentColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(partial.accentColor)) {
+      next.accentColor = partial.accentColor.toLowerCase();
     }
 
     if (typeof partial.crossfadeSeconds === 'number') {

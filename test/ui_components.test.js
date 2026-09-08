@@ -121,4 +121,37 @@ describe('UI Components Lifecycle & Instantiation', () => {
     assert.strictEqual(modal.dom.btnResetBg.style.display, 'none');
     assert.strictEqual(modal.dom.dimmerRow.style.display, 'none');
   });
+
+  test('TrackList handles playlist reordering options and data update', () => {
+    let reorderedIds = null;
+    const tl = new TrackList(mockApp, {
+      isPlaylist: true,
+      onReorderTracks: (ids) => {
+        reorderedIds = ids;
+      }
+    });
+
+    const sampleTracks = [
+      { filePath: '/track1.mp3', title: 'Track 1', artist: 'Artist 1', duration: 180 },
+      { filePath: '/track2.mp3', title: 'Track 2', artist: 'Artist 2', duration: 200 },
+      { filePath: '/track3.mp3', title: 'Track 3', artist: 'Artist 3', duration: 220 }
+    ];
+
+    tl.setTracks(sampleTracks);
+    assert.strictEqual(tl.displayTracks.length, 3);
+    assert.strictEqual(tl.options.isPlaylist, true);
+    assert.ok(typeof tl.options.onReorderTracks === 'function');
+  });
+
+  test('PlayerBar DOM template does not contain btn-settings', () => {
+    const pBar = new PlayerBar(mockAudioEngine, queueManager);
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    pBar.mount(dummyContainer);
+    assert.strictEqual(dummyContainer.innerHTML.includes('id="btn-settings"'), false);
+    assert.strictEqual(pBar.dom.btnSettings, undefined);
+  });
 });

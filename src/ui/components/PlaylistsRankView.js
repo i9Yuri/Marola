@@ -285,6 +285,10 @@ class PlaylistsRankView {
       onPlayTrack: (track, list, idx) => {
         this.app.playTrackDirectly(track, list, idx);
       },
+      onReorderTracks: async (newTrackIds) => {
+        this.selectedPlaylist.trackIds = newTrackIds;
+        await window.api.reorderPlaylistTracks(this.selectedPlaylist.id, newTrackIds);
+      },
       onTrackRemoved: async (track, idx) => {
         const foundIdx = this.selectedPlaylist.trackIds.indexOf(track.filePath);
         if (foundIdx !== -1) {
@@ -295,6 +299,7 @@ class PlaylistsRankView {
       }
     });
 
+    this.trackList = plTrackList;
     plTrackList.setTracks(tracks);
     plTrackList.render(trackListEl);
   }

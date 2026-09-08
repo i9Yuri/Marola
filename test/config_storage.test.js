@@ -79,4 +79,30 @@ describe('ConfigStorage & Preferences Tests', () => {
     s = storage.getSettings();
     assert.deepStrictEqual(s.libraryFolders, ['/music/jazz']);
   });
+
+  test('Accent color validation and persistence', () => {
+    // Valid hex
+    const valid = ConfigStorage.sanitize({ accentColor: '#10b981' });
+    assert.strictEqual(valid.accentColor, '#10b981');
+
+    // Invalid hex falls back to default
+    const invalid = ConfigStorage.sanitize({ accentColor: 'invalid-hex' });
+    assert.strictEqual(invalid.accentColor, '#38bdf8');
+
+    // Preset list contains expected sober colors
+    assert(ConfigStorage.ACCENT_PRESETS.length >= 5);
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#38bdf8'));
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#10b981'));
+    assert(ConfigStorage.ACCENT_PRESETS.some(p => p.hex === '#f59e0b'));
+
+    // Persistence in storage
+    storage.updateSettings({ accentColor: '#f59e0b' });
+    let s = storage.getSettings();
+    assert.strictEqual(s.accentColor, '#f59e0b');
+
+    // Reload from disk
+    const reloaded = new StorageManager(testDb);
+    s = reloaded.getSettings();
+    assert.strictEqual(s.accentColor, '#f59e0b');
+  });
 });

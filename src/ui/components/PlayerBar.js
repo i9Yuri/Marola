@@ -8,7 +8,6 @@ class PlayerBar {
     this.onToggleQueue = options.onToggleQueue || (() => {});
     this.onToggleLyrics = options.onToggleLyrics || (() => {});
     this.onOpenNowPlaying = options.onOpenNowPlaying || (() => {});
-    this.onOpenSettings = options.onOpenSettings || (() => {});
 
     this.isDraggingSeek = false;
     this.dom = {};
@@ -19,7 +18,7 @@ class PlayerBar {
       <!-- Left: Track info (clickable for Now Playing expanded view) -->
       <div class="player-track-info clickable" id="player-track-info-trigger" title="Clique para expandir Now Playing">
         <div class="player-cover" id="player-cover">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
         </div>
         <div class="player-metadata">
           <span class="player-title" id="player-title">Nenhuma faixa selecionada</span>
@@ -31,20 +30,20 @@ class PlayerBar {
       <div class="player-center">
         <div class="transport-controls">
           <button class="btn-icon" id="btn-shuffle" title="Aleatório">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
           </button>
           <button class="btn-icon" id="btn-prev" title="Anterior">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
           </button>
           <button class="play-btn" id="btn-play-pause" title="Reproduzir / Pausar">
-            <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <svg id="icon-pause" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+            <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+            <svg id="icon-pause" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
           </button>
           <button class="btn-icon" id="btn-next" title="Próxima">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
           </button>
           <button class="btn-icon" id="btn-repeat" title="Repetição">
-            <svg id="icon-repeat-all" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+            <svg id="icon-repeat-all" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
             <span id="label-repeat-one" style="display:none; font-size: 11px; font-weight: bold;">1</span>
           </button>
         </div>
@@ -58,23 +57,20 @@ class PlayerBar {
         </div>
       </div>
 
-      <!-- Right: Volume, Drawers & Settings (despoluído sem crossfade) -->
+      <!-- Right: Volume & Drawers (despoluído sem botão de configurações) -->
       <div class="player-right">
         <div class="volume-control">
           <button class="btn-icon" id="btn-mute" title="Mudo">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
           </button>
           <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" title="Volume">
         </div>
 
         <button class="btn-icon" id="btn-lyrics" title="Letras">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
         </button>
         <button class="btn-icon" id="btn-queue" title="Fila de Reprodução">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-        </button>
-        <button class="btn-icon" id="btn-settings" title="Configurações">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
         </button>
       </div>
     `;
@@ -85,29 +81,29 @@ class PlayerBar {
   }
 
   _cacheDom() {
+    const q = (id) => (this.container?.querySelector ? this.container.querySelector('#' + id) : (typeof document !== 'undefined' ? document.getElementById(id) : null));
     this.dom = {
-      trackInfoTrigger: document.getElementById('player-track-info-trigger'),
-      cover: document.getElementById('player-cover'),
-      title: document.getElementById('player-title'),
-      artist: document.getElementById('player-artist'),
-      btnPlayPause: document.getElementById('btn-play-pause'),
-      iconPlay: document.getElementById('icon-play'),
-      iconPause: document.getElementById('icon-pause'),
-      btnPrev: document.getElementById('btn-prev'),
-      btnNext: document.getElementById('btn-next'),
-      btnShuffle: document.getElementById('btn-shuffle'),
-      btnRepeat: document.getElementById('btn-repeat'),
-      iconRepeatAll: document.getElementById('icon-repeat-all'),
-      labelRepeatOne: document.getElementById('label-repeat-one'),
-      progressBar: document.getElementById('progress-bar'),
-      progressFill: document.getElementById('progress-fill'),
-      timeCurrent: document.getElementById('time-current'),
-      timeDuration: document.getElementById('time-duration'),
-      volumeSlider: document.getElementById('volume-slider'),
-      btnMute: document.getElementById('btn-mute'),
-      btnLyrics: document.getElementById('btn-lyrics'),
-      btnQueue: document.getElementById('btn-queue'),
-      btnSettings: document.getElementById('btn-settings')
+      trackInfoTrigger: q('player-track-info-trigger'),
+      cover: q('player-cover'),
+      title: q('player-title'),
+      artist: q('player-artist'),
+      btnPlayPause: q('btn-play-pause'),
+      iconPlay: q('icon-play'),
+      iconPause: q('icon-pause'),
+      btnPrev: q('btn-prev'),
+      btnNext: q('btn-next'),
+      btnShuffle: q('btn-shuffle'),
+      btnRepeat: q('btn-repeat'),
+      iconRepeatAll: q('icon-repeat-all'),
+      labelRepeatOne: q('label-repeat-one'),
+      progressBar: q('progress-bar'),
+      progressFill: q('progress-fill'),
+      timeCurrent: q('time-current'),
+      timeDuration: q('time-duration'),
+      volumeSlider: q('volume-slider'),
+      btnMute: q('btn-mute'),
+      btnLyrics: q('btn-lyrics'),
+      btnQueue: q('btn-queue')
     };
   }
 
@@ -128,9 +124,6 @@ class PlayerBar {
 
     // Now Playing expansion trigger
     this.dom.trackInfoTrigger?.addEventListener('click', () => this.onOpenNowPlaying());
-
-    // Settings modal trigger
-    this.dom.btnSettings?.addEventListener('click', () => this.onOpenSettings());
 
     // Volume slider
     this.dom.volumeSlider?.addEventListener('input', (e) => {
@@ -170,13 +163,15 @@ class PlayerBar {
       handleSeek(e);
     });
 
-    window.addEventListener('mousemove', (e) => {
-      if (this.isDraggingSeek) handleSeek(e);
-    });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mousemove', (e) => {
+        if (this.isDraggingSeek) handleSeek(e);
+      });
 
-    window.addEventListener('mouseup', () => {
-      this.isDraggingSeek = false;
-    });
+      window.addEventListener('mouseup', () => {
+        this.isDraggingSeek = false;
+      });
+    }
 
     // Drawers toggle
     this.dom.btnLyrics?.addEventListener('click', () => this.onToggleLyrics());
@@ -184,16 +179,16 @@ class PlayerBar {
 
     // Audio Engine Listeners
     this.audioEngine.on('stateChange', ({ isPlaying, volume }) => {
-      this.dom.iconPlay.style.display = isPlaying ? 'none' : 'block';
-      this.dom.iconPause.style.display = isPlaying ? 'block' : 'none';
-      this.dom.volumeSlider.value = volume;
+      if (this.dom.iconPlay) this.dom.iconPlay.style.display = isPlaying ? 'none' : 'block';
+      if (this.dom.iconPause) this.dom.iconPause.style.display = isPlaying ? 'block' : 'none';
+      if (this.dom.volumeSlider) this.dom.volumeSlider.value = volume;
     });
 
     this.audioEngine.on('timeupdate', ({ currentTime, duration, progress }) => {
       if (!this.isDraggingSeek) {
-        this.dom.progressFill.style.width = `${(progress || 0) * 100}%`;
-        this.dom.timeCurrent.textContent = this._formatTime(currentTime);
-        this.dom.timeDuration.textContent = this._formatTime(duration);
+        if (this.dom.progressFill) this.dom.progressFill.style.width = `${(progress || 0) * 100}%`;
+        if (this.dom.timeCurrent) this.dom.timeCurrent.textContent = this._formatTime(currentTime);
+        if (this.dom.timeDuration) this.dom.timeDuration.textContent = this._formatTime(duration);
       }
     });
 
@@ -203,42 +198,47 @@ class PlayerBar {
   }
 
   _syncInitialState() {
-    this.dom.volumeSlider.value = this.audioEngine.volume;
+    if (this.dom.volumeSlider) {
+      this.dom.volumeSlider.value = this.audioEngine.volume;
+    }
     this._updateRepeatUi(this.queueManager.repeatMode);
-    this.dom.btnShuffle.classList.toggle('active', this.queueManager.shuffle);
+    if (this.dom.btnShuffle) {
+      this.dom.btnShuffle.classList.toggle('active', this.queueManager.shuffle);
+    }
   }
 
   _updateTrackDisplay(track) {
+    if (!this.dom.title) return;
     if (!track) {
       this.dom.title.textContent = 'Nenhuma faixa selecionada';
-      this.dom.artist.textContent = 'JustPlay Offline';
-      this.dom.cover.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
+      if (this.dom.artist) this.dom.artist.textContent = 'JustPlay Offline';
+      if (this.dom.cover) this.dom.cover.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
       return;
     }
 
     this.dom.title.textContent = track.title || 'Sem título';
-    this.dom.artist.textContent = track.artist || 'Artista desconhecido';
-
-    if (track.coverDataUrl) {
-      this.dom.cover.innerHTML = `<img src="${track.coverDataUrl}" alt="Capa">`;
-    } else {
-      this.dom.cover.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
+    if (this.dom.artist) this.dom.artist.textContent = track.artist || 'Artista desconhecido';
+    if (this.dom.cover) {
+      this.dom.cover.innerHTML = track.coverDataUrl
+        ? `<img src="${track.coverDataUrl}" alt="Capa" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">`
+        : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
     }
   }
 
   _updateRepeatUi(mode) {
+    if (!this.dom.btnRepeat) return;
     if (mode === 'repeat-one') {
       this.dom.btnRepeat.classList.add('active');
-      this.dom.iconRepeatAll.style.display = 'none';
-      this.dom.labelRepeatOne.style.display = 'inline';
+      if (this.dom.iconRepeatAll) this.dom.iconRepeatAll.style.display = 'none';
+      if (this.dom.labelRepeatOne) this.dom.labelRepeatOne.style.display = 'inline';
     } else if (mode === 'repeat-all') {
       this.dom.btnRepeat.classList.add('active');
-      this.dom.iconRepeatAll.style.display = 'inline';
-      this.dom.labelRepeatOne.style.display = 'none';
+      if (this.dom.iconRepeatAll) this.dom.iconRepeatAll.style.display = 'inline';
+      if (this.dom.labelRepeatOne) this.dom.labelRepeatOne.style.display = 'none';
     } else {
       this.dom.btnRepeat.classList.remove('active');
-      this.dom.iconRepeatAll.style.display = 'inline';
-      this.dom.labelRepeatOne.style.display = 'none';
+      if (this.dom.iconRepeatAll) this.dom.iconRepeatAll.style.display = 'inline';
+      if (this.dom.labelRepeatOne) this.dom.labelRepeatOne.style.display = 'none';
     }
   }
 
