@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain, dialog, protocol, net, shell } = requ
 const path = require('path');
 const fs = require('fs');
 const StorageManager = require('../db/storage');
+const LibraryScanner = require('../services/libraryScanner');
 const { parseAudioMetadata, findAdjacentLrc, parseLrc } = require('../metadata/tags');
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a']);
@@ -75,13 +76,38 @@ function registerIpcHandlers() {
   // Dialogs
   ipcMain.handle('dialog:openFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory'],
+      properties: ['openDirectory', 'dontAddToRecent'],
       title: 'Selecionar Pasta de Músicas'
     });
-    if (result.canceled || result.filePaths.length === 0) {
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
       return null;
     }
-    return result.filePaths[0];
+    const selected = path.normalize(path.resolve(result.filePaths[0]));
+    try {
+      await fs.promises.access(selected, fs.constants.R_OK);
+      return selected;
+    } catch (e) {
+      console.warn('[Main] Selected folder does not have read permissions:', selected);
+      return null;
+    }
+  });
+
+  ipcMain.handle('dialog:select-music-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'dontAddToRecent'],
+      title: 'Selecionar Pasta de Músicas'
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return null;
+    }
+    const selected = path.normalize(path.resolve(result.filePaths[0]));
+    try {
+      await fs.promises.access(selected, fs.constants.R_OK);
+      return selected;
+    } catch (e) {
+      console.warn('[Main] Selected folder does not have read permissions:', selected);
+      return null;
+    }
   });
 
   ipcMain.handle('dialog:openFiles', async () => {
@@ -228,6 +254,63 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getFavorites', () => storage.getFavorites());
   ipcMain.handle('db:addLibraryFolder', (_, folderPath) => storage.addLibraryFolder(folderPath));
   ipcMain.handle('db:removeLibraryFolder', (_, folderPath) => storage.removeLibraryFolder(folderPath));
+
+  // Granular Music Folders Manager
+  ipcMain.handle('folders:getAll', () => storage.getMusicFolders());
+  ipcMain.handle('folders:add', async (_, folderPath) => {
+    if (!folderPath) return null;
+    const normalized = path.normalize(path.resolve(folderPath));
+    try {
+      await fs.promises.access(normalized, fs.constants.R_OK);
+    } catch (err) {
+      console.warn('[Main] Cannot add folder without read permissions:', normalized);
+      return null;
+    }
+    return storage.addMusicFolder(normalized);
+  });
+  ipcMain.handle('folders:remove', (_, folderId) => storage.removeMusicFolder(folderId));
+  ipcMain.handle('folders:toggle', (_, folderId, enabled) => storage.toggleMusicFolder(folderId, enabled));
+  ipcMain.handle('folders:updateStats', (_, folderId, stats) => storage.updateFolderStats(folderId, stats));
+  ipcMain.handle('folders:scanAll', async () => {
+    const folders = storage.getMusicFolders().filter(f => f.enabled !== false);
+    let totalFound = 0;
+    for (const f of folders) {
+      try {
+        const audioFiles = await LibraryScanner.scanDirectory(f.path, fs);
+        if (audioFiles.length > 0) {
+          const chunkSize = 8;
+          const parsedTracks = [];
+          for (let i = 0; i < audioFiles.length; i += chunkSize) {
+            const chunk = audioFiles.slice(i, i + chunkSize);
+            const results = await Promise.all(
+              chunk.map(async (fp) => {
+                try {
+                  return await parseAudioMetadata(fp);
+                } catch (e) {
+                  return {
+                    filePath: fp,
+                    title: path.parse(fp).name,
+                    artist: 'Artista Desconhecido',
+                    album: 'Álbum Desconhecido',
+                    duration: 0,
+                    coverDataUrl: null,
+                    lyrics: null
+                  };
+                }
+              })
+            );
+            parsedTracks.push(...results);
+          }
+          storage.upsertTracksBatch(parsedTracks);
+          totalFound += audioFiles.length;
+        }
+        storage.updateFolderStats(f.id, { trackCount: audioFiles.length, lastScanned: Date.now() });
+      } catch (err) {
+        console.warn(`[Main] Error scanning folder ${f.path}:`, err);
+      }
+    }
+    return { totalFound, folders: storage.getMusicFolders() };
+  });
 
   // Window Controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());

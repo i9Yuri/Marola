@@ -117,20 +117,21 @@ class SettingsModal {
             </div>
           </div>
 
-          <!-- Section 3: Monitored Library Directories -->
+          <!-- Section 3: Music Folders Manager (Pastas de Mídia) -->
           <div class="settings-section">
-            <h4 class="settings-section-title">Diretórios da Biblioteca</h4>
-            <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 10px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="settings-label">
-                  <strong>Pastas Monitoradas</strong>
-                  <span>Pastas do sistema onde suas músicas locais estão armazenadas</span>
+            <h4 class="settings-section-title">Pastas de Mídia</h4>
+            <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                <div class="settings-label" style="max-width: 70%;">
+                  <strong>Diretórios Monitorados</strong>
+                  <span>As faixas exibidas na biblioteca provêm exclusivamente das pastas ativas listadas abaixo. Desmarque uma pasta para ocultar suas músicas temporariamente ou remova-a para desvincular do acervo.</span>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                  <button class="btn btn-secondary btn-sm" id="setting-btn-rescan-all">
-                    Escanear Agora
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                  <button class="btn btn-secondary btn-sm" id="setting-btn-rescan-all" title="Reescanear todas as pastas ativas">
+                    Escanear Todas
                   </button>
-                  <button class="btn btn-primary btn-sm" id="setting-btn-add-dir">
+                  <button class="btn-add-music-folder" id="setting-btn-add-dir" title="Adicionar novo diretório de músicas">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Adicionar Pasta
                   </button>
                 </div>
@@ -256,43 +257,66 @@ class SettingsModal {
       this.app.applyBackground(this.currentSettings.backgroundImage, val);
     });
 
-    // Add Library Directory
+    // Add Music Folder
     this.dom.btnAddDir?.addEventListener('click', async () => {
-      const folder = await window.api.openFolderDialog();
-      if (folder) {
-        const folders = await window.api.addLibraryFolder(folder);
-        this.currentSettings.libraryFolders = folders;
-        this._renderDirectories();
+      const folder = window.api?.selectMusicFolder
+        ? await window.api.selectMusicFolder()
+        : await window.api?.openFolderDialog();
 
-        // Scan newly added folder
-        this.app.showToast(`Escaneando pasta: ${folder}...`);
-        const files = await window.api.scanFolder(folder);
-        if (files.length > 0) {
-          await window.api.parseMetadataBatch(files);
-          this.app.showToast(`${files.length} faixas indexadas!`);
-          if (this.app.views.recent) this.app.views.recent.loadTracks();
+      if (folder) {
+        this.app.showToast(`Adicionando pasta: ${folder}...`);
+        let newEntry = null;
+        if (window.api?.addMusicFolder) {
+          newEntry = await window.api.addMusicFolder(folder);
+        } else if (window.api?.addLibraryFolder) {
+          await window.api.addLibraryFolder(folder);
         }
+
+        // Scan newly added folder in background
+        if (window.api?.scanFolder) {
+          const files = await window.api.scanFolder(folder);
+          if (files && files.length > 0 && window.api?.parseMetadataBatch) {
+            this.app.showToast(`Indexando ${files.length} faixas encontradas...`);
+            await window.api.parseMetadataBatch(files);
+          }
+        }
+
+        if (window.api?.getSettings) {
+          this.currentSettings = await window.api.getSettings();
+        } else if (newEntry && Array.isArray(this.currentSettings.musicFolders)) {
+          this.currentSettings.musicFolders.push(newEntry);
+        }
+
+        this._renderDirectories();
+        this.app.showToast('Pasta adicionada à biblioteca!');
+        if (this.app.views.recent) await this.app.views.recent.loadTracks();
       }
     });
 
     // Rescan all folders
     this.dom.btnRescanAll?.addEventListener('click', async () => {
-      const folders = this.currentSettings.libraryFolders || [];
-      if (folders.length === 0) {
-        this.app.showToast('Nenhuma pasta monitorada configurada.');
-        return;
-      }
-      this.app.showToast('Reescaneando diretórios...');
-      let totalFound = 0;
-      for (const f of folders) {
-        const files = await window.api.scanFolder(f);
-        if (files.length > 0) {
-          await window.api.parseMetadataBatch(files);
-          totalFound += files.length;
+      this.app.showToast('Reescaneando pastas monitoradas...');
+      if (window.api?.scanAllFolders) {
+        const result = await window.api.scanAllFolders();
+        if (result?.folders) {
+          this.currentSettings.musicFolders = result.folders;
         }
+        this._renderDirectories();
+        this.app.showToast(`Varredura concluída: ${result?.totalFound || 0} faixas processadas.`);
+      } else {
+        const folders = this.currentSettings.musicFolders || [];
+        let totalFound = 0;
+        for (const f of folders) {
+          if (f.enabled === false) continue;
+          const files = await window.api.scanFolder(f.path);
+          if (files && files.length > 0) {
+            await window.api.parseMetadataBatch(files);
+            totalFound += files.length;
+          }
+        }
+        this.app.showToast(`Varredura concluída: ${totalFound} faixas processadas.`);
       }
-      this.app.showToast(`Escaneamento concluído: ${totalFound} faixas processadas.`);
-      if (this.app.views.recent) this.app.views.recent.loadTracks();
+      if (this.app.views.recent) await this.app.views.recent.loadTracks();
     });
 
     // Escape key handling
@@ -368,40 +392,138 @@ class SettingsModal {
   }
 
   _renderDirectories() {
-    const folders = this.currentSettings.libraryFolders || [];
+    let folders = this.currentSettings.musicFolders;
+    if (!Array.isArray(folders) || folders.length === 0) {
+      if (Array.isArray(this.currentSettings.libraryFolders) && this.currentSettings.libraryFolders.length > 0) {
+        folders = this.currentSettings.libraryFolders.map((p, i) => ({
+          id: `fld_leg_${i}`,
+          path: p,
+          enabled: true,
+          trackCount: 0,
+          lastScanned: null
+        }));
+      } else {
+        folders = [];
+      }
+    }
+
+    if (!this.dom.dirList) return;
+
     if (folders.length === 0) {
       this.dom.dirList.innerHTML = `
-        <div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px;">
-          Nenhum diretório adicionado ainda. Clique em "Adicionar Pasta" para monitorar pastas locais.
+        <div class="settings-folders-empty">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="margin-bottom: 6px; opacity: 0.6;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <div style="font-weight: 600; color: #b3b3b3;">Nenhuma pasta de mídia monitorada</div>
+          <div style="font-size: 0.76rem; color: #777777; margin-top: 3px;">Clique em "Adicionar Pasta" para indexar pastas locais do seu sistema.</div>
         </div>
       `;
       return;
     }
 
     let html = '';
-    folders.forEach((dirPath, idx) => {
+    folders.forEach(f => {
+      const isEnabled = f.enabled !== false;
+      const count = typeof f.trackCount === 'number' ? f.trackCount : 0;
+      const countLabel = `${count} faixa${count === 1 ? '' : 's'}`;
+      const statusLabel = isEnabled ? 'Ativa' : 'Desativada';
+      const escapedPath = this._escapeHtml(f.path);
+      const displayPath = this._formatPathMiddle(f.path, 46);
+
       html += `
-        <div class="settings-dir-item" data-index="${idx}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-          <span class="settings-dir-path" title="${dirPath}">${dirPath}</span>
-          <button class="btn-icon btn-remove-dir" title="Remover pasta" data-path="${dirPath}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+        <div class="settings-folder-card ${isEnabled ? '' : 'disabled'}" data-id="${f.id}">
+          <div class="folder-info-col">
+            <div class="folder-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <div class="folder-details">
+              <div class="folder-path-text" title="${escapedPath}">${displayPath}</div>
+              <div class="folder-meta-row">
+                <span class="folder-count-badge">${countLabel}</span>
+                <span class="folder-status-indicator">${statusLabel}</span>
+              </div>
+            </div>
+          </div>
+          <div class="folder-actions-col">
+            <label class="toggle-switch" title="${isEnabled ? 'Desativar pasta' : 'Ativar pasta'}">
+              <input type="checkbox" class="folder-toggle-input" data-id="${f.id}" ${isEnabled ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+            <button class="btn-remove-folder" title="Excluir pasta da lista monitorada" data-id="${f.id}" data-path="${escapedPath}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       `;
     });
 
     this.dom.dirList.innerHTML = html;
 
-    this.dom.dirList.querySelectorAll('.btn-remove-dir').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const p = btn.dataset.path;
-        const updated = await window.api.removeLibraryFolder(p);
-        this.currentSettings.libraryFolders = updated;
-        this._renderDirectories();
+    // Toggle switch listeners
+    this.dom.dirList.querySelectorAll('.folder-toggle-input').forEach(input => {
+      input.addEventListener('change', async () => {
+        const id = input.dataset.id;
+        const checked = input.checked;
+        if (window.api?.toggleMusicFolder) {
+          await window.api.toggleMusicFolder(id, checked);
+        }
+        const target = this.currentSettings.musicFolders?.find(item => item.id === id);
+        if (target) target.enabled = checked;
+
+        const card = input.closest('.settings-folder-card');
+        if (card) {
+          card.classList.toggle('disabled', !checked);
+          const statusEl = card.querySelector('.folder-status-indicator');
+          if (statusEl) statusEl.textContent = checked ? 'Ativa' : 'Desativada';
+        }
+
+        this.app.showToast(checked ? 'Pasta reativada na biblioteca' : 'Pasta desativada (faixas ocultadas)');
+        if (this.app.views.recent) {
+          await this.app.views.recent.loadTracks();
+        }
       });
     });
+
+    // Remove folder listeners
+    this.dom.dirList.querySelectorAll('.btn-remove-folder').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const p = btn.dataset.path;
+        if (window.api?.removeMusicFolder) {
+          const updated = await window.api.removeMusicFolder(id);
+          this.currentSettings.musicFolders = updated;
+        } else if (window.api?.removeLibraryFolder) {
+          const updated = await window.api.removeLibraryFolder(p);
+          this.currentSettings.libraryFolders = updated;
+        } else {
+          this.currentSettings.musicFolders = (this.currentSettings.musicFolders || []).filter(f => f.id !== id);
+        }
+        this._renderDirectories();
+        this.app.showToast('Pasta removida da lista e registros purgados.');
+        if (this.app.views.recent) {
+          await this.app.views.recent.loadTracks();
+        }
+      });
+    });
+  }
+
+  _formatPathMiddle(fullPath, maxLen = 46) {
+    if (!fullPath || fullPath.length <= maxLen) return fullPath || '';
+    const half = Math.floor((maxLen - 3) / 2);
+    return fullPath.substring(0, half) + '...' + fullPath.substring(fullPath.length - half);
+  }
+
+  _escapeHtml(str) {
+    return (str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }
 

@@ -44,6 +44,14 @@ contextBridge.exposeInMainWorld('api', {
   addLibraryFolder: (folderPath) => ipcRenderer.invoke('db:addLibraryFolder', folderPath),
   removeLibraryFolder: (folderPath) => ipcRenderer.invoke('db:removeLibraryFolder', folderPath),
 
+  // Granular Music Folders Manager
+  selectMusicFolder: () => ipcRenderer.invoke('dialog:select-music-folder'),
+  getMusicFolders: () => ipcRenderer.invoke('folders:getAll'),
+  addMusicFolder: (folderPath) => ipcRenderer.invoke('folders:add', folderPath),
+  removeMusicFolder: (folderId) => ipcRenderer.invoke('folders:remove', folderId),
+  toggleMusicFolder: (folderId, enabled) => ipcRenderer.invoke('folders:toggle', folderId, enabled),
+  scanAllFolders: () => ipcRenderer.invoke('folders:scanAll'),
+
   // Window Controls
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),

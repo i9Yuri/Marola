@@ -609,12 +609,20 @@ class HomeRecentView {
       const res = await window.api.getRecentTracks(500);
       this.tracks = Array.isArray(res) ? res : [];
 
+      const settings = await window.api.getSettings();
+      if (typeof LibraryScanner !== 'undefined' && settings?.musicFolders?.length > 0) {
+        this.tracks = LibraryScanner.filterTracksByActiveFolders(this.tracks, settings.musicFolders);
+      }
+
       if (this.tracks.length === 0) {
-        const settings = await window.api.getSettings();
-        const folders = settings?.libraryFolders || [];
-        if (folders.length > 0) {
+        const musicFolders = settings?.musicFolders || [];
+        const activeFolders = musicFolders.length > 0
+          ? musicFolders.filter(f => f.enabled !== false).map(f => f.path)
+          : (settings?.libraryFolders || []);
+
+        if (activeFolders.length > 0) {
           let anyIndexed = false;
-          for (const f of folders) {
+          for (const f of activeFolders) {
             const audioFiles = await window.api.scanFolder(f);
             if (audioFiles && audioFiles.length > 0) {
               await window.api.parseMetadataBatch(audioFiles);
@@ -624,6 +632,9 @@ class HomeRecentView {
           if (anyIndexed) {
             const refreshed = await window.api.getRecentTracks(500);
             this.tracks = Array.isArray(refreshed) ? refreshed : [];
+            if (typeof LibraryScanner !== 'undefined' && settings?.musicFolders?.length > 0) {
+              this.tracks = LibraryScanner.filterTracksByActiveFolders(this.tracks, settings.musicFolders);
+            }
           }
         }
       }

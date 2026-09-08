@@ -1547,9 +1547,144 @@ body.has-custom-bg .split-card {
 .settings-dir-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 140px;
+  gap: 8px;
+  max-height: 240px;
   overflow-y: auto;
+}
+
+.settings-folder-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: #181818;
+  border: 1px solid #282828;
+  border-radius: 8px;
+}
+
+.settings-folder-card:hover {
+  background-color: #202020;
+  border-color: #333333;
+}
+
+.settings-folder-card.disabled {
+  opacity: 0.55;
+}
+
+.folder-info-col {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.folder-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.settings-folder-card.disabled .folder-icon {
+  color: #777777;
+}
+
+.folder-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+  flex: 1;
+}
+
+.folder-path-text {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-count-badge {
+  background: #282828;
+  color: #b3b3b3;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.folder-status-indicator {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.settings-folder-card.disabled .folder-status-indicator {
+  color: #777777;
+}
+
+.folder-actions-col {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.btn-remove-folder {
+  background: transparent;
+  border: none;
+  color: #777777;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove-folder:hover {
+  color: #e11d48;
+  background: rgba(225, 29, 72, 0.12);
+}
+
+.settings-folders-empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: #888888;
+  background: #181818;
+  border: 1px dashed #2e2e2e;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.btn-add-music-folder {
+  background: #242424;
+  border: 1px solid #3e3e3e;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.btn-add-music-folder:hover {
+  background: #2e2e2e;
+  border-color: #555555;
 }
 
 .settings-dir-item {

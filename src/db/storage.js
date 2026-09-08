@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const ConfigStorage = require('../services/configStorage');
+const LibraryScanner = require('../services/libraryScanner');
 
 class StorageManager {
   constructor(customDbPath = null) {
@@ -9,7 +10,7 @@ class StorageManager {
       tracks: {}, // id (filePath) -> { id, filePath, title, artist, album, duration, coverDataUrl, play_count, last_played_at, added_at }
       playlists: [], // Array<{ id, name, createdAt, trackIds: string[] }>
       playlistOrder: [], // Array of playlist IDs for manual ordering
-      settings: { ...ConfigStorage.DEFAULT_CONFIG }
+      settings: ConfigStorage.sanitize({}, ConfigStorage.DEFAULT_CONFIG)
     };
     this.init();
   }
@@ -43,7 +44,7 @@ class StorageManager {
           tracks: parsed.tracks || {},
           playlists: parsed.playlists || [],
           playlistOrder: parsed.playlistOrder || (parsed.playlists ? parsed.playlists.map(p => p.id) : []),
-          settings: { ...this.data.settings, ...(parsed.settings || {}) }
+          settings: ConfigStorage.sanitize(parsed.settings || {}, this.data.settings)
         };
       } else {
         this.save();
@@ -145,8 +146,17 @@ class StorageManager {
     return null;
   }
 
-  getAllTracks() {
-    return Object.values(this.data.tracks);
+  _filterActive(tracks) {
+    const folders = this.data.settings?.musicFolders;
+    if (Array.isArray(folders) && folders.length > 0) {
+      return LibraryScanner.filterTracksByActiveFolders(tracks, folders);
+    }
+    return tracks;
+  }
+
+  getAllTracks(options = { activeOnly: true }) {
+    const all = Object.values(this.data.tracks);
+    return options?.activeOnly !== false ? this._filterActive(all) : all;
   }
 
   getTrack(filePath) {
@@ -156,8 +166,10 @@ class StorageManager {
   /**
    * Returns top tracks ordered strictly by play_count DESC.
    */
-  getTopTracks(limit = 50) {
-    return Object.values(this.data.tracks)
+  getTopTracks(limit = 50, options = { activeOnly: true }) {
+    const all = Object.values(this.data.tracks);
+    const pool = options?.activeOnly !== false ? this._filterActive(all) : all;
+    return pool
       .filter(t => (t.play_count || 0) > 0)
       .sort((a, b) => {
         if (b.play_count !== a.play_count) {
@@ -171,8 +183,10 @@ class StorageManager {
   /**
    * Returns recent tracks ordered by last_played_at or added_at DESC.
    */
-  getRecentTracks(limit = 100) {
-    return Object.values(this.data.tracks)
+  getRecentTracks(limit = 100, options = { activeOnly: true }) {
+    const all = Object.values(this.data.tracks);
+    const pool = options?.activeOnly !== false ? this._filterActive(all) : all;
+    return pool
       .sort((a, b) => {
         const timeA = a.last_played_at || a.added_at || 0;
         const timeB = b.last_played_at || b.added_at || 0;
@@ -314,21 +328,143 @@ class StorageManager {
     return [...(this.data.settings.favorites || [])];
   }
 
-  // --- Library Folders ---
+  // --- Music Folders (Granular Media Folders Manager) ---
+
+  getMusicFolders() {
+    return [...(this.data.settings.musicFolders || [])];
+  }
+
+  addMusicFolder(folderPath) {
+    if (!folderPath || typeof folderPath !== 'string') return null;
+    let normalized = path.normalize(folderPath.trim());
+    if (normalized.length > 1) normalized = normalized.replace(/[/\\]+$/, '');
+
+    if (!Array.isArray(this.data.settings.musicFolders)) {
+      this.data.settings.musicFolders = [];
+    }
+
+    const existing = this.data.settings.musicFolders.find(f => {
+      let p = path.normalize(f.path);
+      if (p.length > 1) p = p.replace(/[/\\]+$/, '');
+      return p === normalized;
+    });
+
+    if (existing) {
+      existing.enabled = true;
+      this._syncLibraryFolders();
+      this.save();
+      return existing;
+    }
+
+    const id = 'fld_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+    const newFolder = {
+      id,
+      path: normalized,
+      enabled: true,
+      trackCount: 0,
+      lastScanned: null
+    };
+
+    this.data.settings.musicFolders.push(newFolder);
+    this._syncLibraryFolders();
+    this.save();
+    return newFolder;
+  }
+
+  removeMusicFolder(folderIdOrPath) {
+    if (!folderIdOrPath) return this.getMusicFolders();
+    const folders = this.data.settings.musicFolders || [];
+    let normTarget = typeof folderIdOrPath === 'string' ? path.normalize(folderIdOrPath.trim()) : '';
+    if (normTarget.length > 1) normTarget = normTarget.replace(/[/\\]+$/, '');
+
+    const target = folders.find(f => {
+      if (f.id === folderIdOrPath) return true;
+      let p = path.normalize(f.path);
+      if (p.length > 1) p = p.replace(/[/\\]+$/, '');
+      return p === normTarget;
+    });
+
+    if (!target) return this.getMusicFolders();
+
+    // 1. Remove from folders list
+    this.data.settings.musicFolders = folders.filter(f => f.id !== target.id);
+    this._syncLibraryFolders();
+
+    // 2. Purge associated tracks from DB (without touching physical files on disk)
+    this.purgeTracksByFolder(target.path);
+
+    this.save();
+    return this.getMusicFolders();
+  }
+
+  toggleMusicFolder(folderId, enabled) {
+    if (!folderId) return null;
+    const folders = this.data.settings.musicFolders || [];
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return null;
+
+    folder.enabled = typeof enabled === 'boolean' ? enabled : !folder.enabled;
+    this._syncLibraryFolders();
+    this.save();
+    return folder;
+  }
+
+  updateFolderStats(folderIdOrPath, { trackCount, lastScanned = Date.now() } = {}) {
+    const folders = this.data.settings.musicFolders || [];
+    const folder = folders.find(
+      f => f.id === folderIdOrPath || path.normalize(f.path) === path.normalize(folderIdOrPath)
+    );
+    if (!folder) return null;
+
+    if (typeof trackCount === 'number') folder.trackCount = Math.floor(trackCount);
+    if (lastScanned) folder.lastScanned = lastScanned;
+    this.save();
+    return folder;
+  }
+
+  purgeTracksByFolder(folderPath) {
+    if (!folderPath) return 0;
+    let normFolder = path.normalize(folderPath).replace(/\\/g, '/');
+    if (!normFolder.endsWith('/')) normFolder += '/';
+
+    let purgedCount = 0;
+    const purgedTrackIds = new Set();
+
+    for (const [id, track] of Object.entries(this.data.tracks)) {
+      const trackNorm = path.normalize(track.filePath || id).replace(/\\/g, '/');
+      if (trackNorm.startsWith(normFolder)) {
+        delete this.data.tracks[id];
+        purgedTrackIds.add(id);
+        purgedCount++;
+      }
+    }
+
+    if (purgedCount > 0 && Array.isArray(this.data.playlists)) {
+      for (const pl of this.data.playlists) {
+        if (Array.isArray(pl.trackIds)) {
+          pl.trackIds = pl.trackIds.filter(tid => !purgedTrackIds.has(tid));
+        }
+      }
+    }
+
+    return purgedCount;
+  }
+
+  _syncLibraryFolders() {
+    this.data.settings.libraryFolders = (this.data.settings.musicFolders || [])
+      .filter(f => f.enabled !== false)
+      .map(f => f.path);
+  }
+
+  // --- Legacy Library Folders Compatibility ---
 
   addLibraryFolder(folderPath) {
-    if (!folderPath) return this.data.settings.libraryFolders || [];
-    const folders = new Set(this.data.settings.libraryFolders || []);
-    folders.add(folderPath);
-    this.data.settings.libraryFolders = Array.from(folders);
-    this.save();
+    this.addMusicFolder(folderPath);
     return this.data.settings.libraryFolders;
   }
 
   removeLibraryFolder(folderPath) {
-    if (!folderPath || !this.data.settings.libraryFolders) return [];
-    this.data.settings.libraryFolders = this.data.settings.libraryFolders.filter(f => f !== folderPath);
-    this.save();
+    this.removeMusicFolder(folderPath);
     return this.data.settings.libraryFolders;
   }
 }
