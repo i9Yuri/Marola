@@ -12,22 +12,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     incrementPlayCount: (fp) => window.api.incrementPlayCount(fp)
   };
 
-  // Sync settings from main process
-  try {
-    const remoteSettings = await window.api.getSettings();
-    if (remoteSettings) {
-      storageProxy.getSettings = () => remoteSettings;
-      if (remoteSettings.repeatMode) {
-        queueManager.setRepeatMode(remoteSettings.repeatMode);
-      }
-      if (typeof remoteSettings.shuffle === 'boolean') {
-        queueManager.setShuffle(remoteSettings.shuffle);
-      }
-    }
-  } catch (err) {
-    console.warn('[Renderer] Failed to load remote settings:', err);
-  }
-
   const audioEngine = new AudioEngine(queueManager, storageProxy);
 
   // App Context to pass to child views
@@ -36,6 +20,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     queueManager,
     currentView: 'recent',
     views: {},
+    favoritesSet: new Set(),
+
+    isFavorite(filePath) {
+      return this.favoritesSet.has(filePath);
+    },
+
+    syncFavorites(favsList) {
+      this.favoritesSet = new Set(Array.isArray(favsList) ? favsList : []);
+    },
+
+    applyTheme(theme) {
+      const root = document.documentElement;
+      if (this._systemThemeListener) {
+        this._systemThemeMatcher?.removeEventListener('change', this._systemThemeListener);
+        this._systemThemeListener = null;
+      }
+
+      if (theme === 'light') {
+        root.setAttribute('data-theme', 'light');
+      } else if (theme === 'system') {
+        this._systemThemeMatcher = window.matchMedia('(prefers-color-scheme: light)');
+        const updateSys = (e) => {
+          if (e.matches) {
+            root.setAttribute('data-theme', 'light');
+          } else {
+            root.removeAttribute('data-theme');
+          }
+        };
+        updateSys(this._systemThemeMatcher);
+        this._systemThemeListener = updateSys;
+        this._systemThemeMatcher.addEventListener('change', updateSys);
+      } else {
+        // default 'dark'
+        root.removeAttribute('data-theme');
+      }
+    },
+
+    applyBackground(imgPath, dim = 0.4) {
+      const bgLayer = document.getElementById('app-bg-layer');
+      const bgDimmer = document.getElementById('app-bg-dimmer');
+      if (!bgLayer || !bgDimmer) return;
+
+      if (imgPath) {
+        document.body.classList.add('has-custom-bg');
+        bgLayer.style.backgroundImage = `url("file://${imgPath}")`;
+        bgDimmer.style.opacity = dim;
+      } else {
+        document.body.classList.remove('has-custom-bg');
+        bgLayer.style.backgroundImage = 'none';
+        bgDimmer.style.opacity = '0';
+      }
+    },
 
     showToast(message, duration = 3000) {
       const toast = document.getElementById('toast-notification');
@@ -140,36 +176,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // Sync settings and favorites from main process
+  try {
+    const [remoteSettings, favs] = await Promise.all([
+      window.api.getSettings(),
+      window.api.getFavorites()
+    ]);
+
+    if (favs) {
+      app.syncFavorites(favs);
+    }
+
+    if (remoteSettings) {
+      storageProxy.getSettings = () => remoteSettings;
+      if (remoteSettings.repeatMode) {
+        queueManager.setRepeatMode(remoteSettings.repeatMode);
+      }
+      if (typeof remoteSettings.shuffle === 'boolean') {
+        queueManager.setShuffle(remoteSettings.shuffle);
+      }
+      if (typeof remoteSettings.crossfadeSeconds === 'number') {
+        audioEngine.setCrossfade(remoteSettings.crossfadeSeconds);
+      }
+      if (typeof remoteSettings.volume === 'number') {
+        audioEngine.setVolume(remoteSettings.volume);
+      }
+      if (remoteSettings.theme) {
+        app.applyTheme(remoteSettings.theme);
+      }
+      if (remoteSettings.backgroundImage) {
+        app.applyBackground(remoteSettings.backgroundImage, remoteSettings.backgroundDim ?? 0.4);
+      }
+    }
+  } catch (err) {
+    console.warn('[Renderer] Failed to load remote settings/favorites:', err);
+  }
+
   // Mount Views
   const recentViewContainer = document.getElementById('view-recent-container');
   const playlistsViewContainer = document.getElementById('view-playlists-container');
   const queueDrawerContainer = document.getElementById('queue-drawer-container');
   const lyricsDrawerContainer = document.getElementById('lyrics-drawer-container');
+  const nowPlayingContainer = document.getElementById('now-playing-container');
+  const settingsModalContainer = document.getElementById('settings-modal-container');
   const playerBarContainer = document.getElementById('player-bar');
 
   const homeRecentView = new HomeRecentView(app);
   const playlistsRankView = new PlaylistsRankView(app);
   const queueView = new QueueView(app);
   const lyricsView = new LyricsView(app);
+  const nowPlayingView = new NowPlayingView(app);
+  const settingsModal = new SettingsModal(app);
 
   app.views.recent = homeRecentView;
   app.views.playlists = playlistsRankView;
   app.views.queue = queueView;
   app.views.lyrics = lyricsView;
+  app.views.nowPlaying = nowPlayingView;
+  app.views.settings = settingsModal;
 
   homeRecentView.mount(recentViewContainer);
   playlistsRankView.mount(playlistsViewContainer);
   queueView.mount(queueDrawerContainer);
   lyricsView.mount(lyricsDrawerContainer);
+  nowPlayingView.mount(nowPlayingContainer);
+  settingsModal.mount(settingsModalContainer);
 
   const playerBar = new PlayerBar(audioEngine, queueManager, {
     onToggleQueue: () => queueView.toggle(),
-    onToggleLyrics: () => lyricsView.toggle()
+    onToggleLyrics: () => lyricsView.toggle(),
+    onOpenNowPlaying: () => nowPlayingView.open(),
+    onOpenSettings: () => settingsModal.open()
   });
   playerBar.mount(playerBarContainer);
 
+  // Settings button in sidebar
+  const navBtnSettings = document.getElementById('nav-btn-settings');
+  if (navBtnSettings) {
+    navBtnSettings.addEventListener('click', () => {
+      settingsModal.open();
+    });
+  }
+
   // Navigation menu handling
-  const navItems = document.querySelectorAll('.nav-item');
+  const navItems = document.querySelectorAll('.nav-menu .nav-item[data-target]');
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       navItems.forEach(n => n.classList.remove('active'));

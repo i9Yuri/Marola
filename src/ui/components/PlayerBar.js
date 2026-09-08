@@ -7,6 +7,8 @@ class PlayerBar {
     this.queueManager = queueManager;
     this.onToggleQueue = options.onToggleQueue || (() => {});
     this.onToggleLyrics = options.onToggleLyrics || (() => {});
+    this.onOpenNowPlaying = options.onOpenNowPlaying || (() => {});
+    this.onOpenSettings = options.onOpenSettings || (() => {});
 
     this.isDraggingSeek = false;
     this.dom = {};
@@ -14,8 +16,8 @@ class PlayerBar {
 
   mount(containerElement) {
     containerElement.innerHTML = `
-      <!-- Left: Track info -->
-      <div class="player-track-info">
+      <!-- Left: Track info (clickable for Now Playing expanded view) -->
+      <div class="player-track-info clickable" id="player-track-info-trigger" title="Clique para expandir Now Playing">
         <div class="player-cover" id="player-cover">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
         </div>
@@ -56,13 +58,8 @@ class PlayerBar {
         </div>
       </div>
 
-      <!-- Right: Crossfade, Volume & Drawers -->
+      <!-- Right: Volume, Drawers & Settings (despoluído sem crossfade) -->
       <div class="player-right">
-        <div class="crossfade-control" title="Ajuste do tempo de transição (Crossfade)">
-          <span id="crossfade-label">Fade: 3s</span>
-          <input type="range" id="crossfade-slider" min="0" max="12" step="1" value="3">
-        </div>
-
         <div class="volume-control">
           <button class="btn-icon" id="btn-mute" title="Mudo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
@@ -76,6 +73,9 @@ class PlayerBar {
         <button class="btn-icon" id="btn-queue" title="Fila de Reprodução">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
         </button>
+        <button class="btn-icon" id="btn-settings" title="Configurações">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
       </div>
     `;
 
@@ -86,6 +86,7 @@ class PlayerBar {
 
   _cacheDom() {
     this.dom = {
+      trackInfoTrigger: document.getElementById('player-track-info-trigger'),
       cover: document.getElementById('player-cover'),
       title: document.getElementById('player-title'),
       artist: document.getElementById('player-artist'),
@@ -102,12 +103,11 @@ class PlayerBar {
       progressFill: document.getElementById('progress-fill'),
       timeCurrent: document.getElementById('time-current'),
       timeDuration: document.getElementById('time-duration'),
-      crossfadeSlider: document.getElementById('crossfade-slider'),
-      crossfadeLabel: document.getElementById('crossfade-label'),
       volumeSlider: document.getElementById('volume-slider'),
       btnMute: document.getElementById('btn-mute'),
       btnLyrics: document.getElementById('btn-lyrics'),
-      btnQueue: document.getElementById('btn-queue')
+      btnQueue: document.getElementById('btn-queue'),
+      btnSettings: document.getElementById('btn-settings')
     };
   }
 
@@ -126,12 +126,11 @@ class PlayerBar {
       this._updateRepeatUi(mode);
     });
 
-    // Crossfade slider
-    this.dom.crossfadeSlider.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
-      this.dom.crossfadeLabel.textContent = `Fade: ${val}s`;
-      this.audioEngine.setCrossfade(val);
-    });
+    // Now Playing expansion trigger
+    this.dom.trackInfoTrigger.addEventListener('click', () => this.onOpenNowPlaying());
+
+    // Settings modal trigger
+    this.dom.btnSettings.addEventListener('click', () => this.onOpenSettings());
 
     // Volume slider
     this.dom.volumeSlider.addEventListener('input', (e) => {
@@ -203,10 +202,6 @@ class PlayerBar {
   }
 
   _syncInitialState() {
-    const fade = this.audioEngine.crossfadeSeconds;
-    this.dom.crossfadeSlider.value = fade;
-    this.dom.crossfadeLabel.textContent = `Fade: ${fade}s`;
-
     this.dom.volumeSlider.value = this.audioEngine.volume;
     this._updateRepeatUi(this.queueManager.repeatMode);
     this.dom.btnShuffle.classList.toggle('active', this.queueManager.shuffle);

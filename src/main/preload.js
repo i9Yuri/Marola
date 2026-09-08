@@ -34,6 +34,16 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('db:getSettings'),
   updateSettings: (settings) => ipcRenderer.invoke('db:updateSettings', settings),
 
+  // Image Dialog & Shell reveal
+  openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+
+  // Favorites & Library Folders
+  toggleFavorite: (filePath) => ipcRenderer.invoke('db:toggleFavorite', filePath),
+  getFavorites: () => ipcRenderer.invoke('db:getFavorites'),
+  addLibraryFolder: (folderPath) => ipcRenderer.invoke('db:addLibraryFolder', folderPath),
+  removeLibraryFolder: (folderPath) => ipcRenderer.invoke('db:removeLibraryFolder', folderPath),
+
   // Window Controls
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),

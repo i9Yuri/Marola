@@ -250,74 +250,41 @@ class PlaylistsRankView {
       return;
     }
 
-    let rowsHtml = '';
-    tracks.forEach((track, idx) => {
-      rowsHtml += `
-        <div class="queue-item" data-index="${idx}">
-          <button class="btn-icon btn-track-play" title="Tocar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          </button>
-          <div class="queue-item-info">
-            <div class="queue-item-title">${track.title || 'Sem título'}</div>
-            <div class="queue-item-artist">${track.artist || 'Artista desconhecido'}</div>
-          </div>
-          <button class="btn-icon btn-track-up" title="Subir" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-          </button>
-          <button class="btn-icon btn-track-down" title="Descer" ${idx === tracks.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <button class="btn-icon btn-track-remove" title="Remover da Playlist" style="color: var(--danger);">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-      `;
-    });
-
     container.innerHTML = `
-      <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <span style="font-size: 0.8rem; color: var(--text-muted);">${tracks.length} faixa${tracks.length === 1 ? '' : 's'}</span>
-        <button class="btn btn-primary btn-sm" id="btn-play-all-playlist" style="padding: 4px 10px; font-size: 0.78rem;">
+        <button class="btn btn-primary btn-sm" id="btn-play-all-playlist" style="padding: 4px 12px; font-size: 0.78rem;">
           Tocar Playlist
         </button>
       </div>
-      <div class="queue-list">${rowsHtml}</div>
+      <div id="playlist-tracklist-container" style="flex: 1; overflow-y: auto;"></div>
     `;
 
     container.querySelector('#btn-play-all-playlist').addEventListener('click', () => {
       this.app.setQueueAndPlay(tracks, 0);
     });
 
-    container.querySelectorAll('.queue-item').forEach(item => {
-      const idx = parseInt(item.dataset.index, 10);
-      const track = tracks[idx];
-
-      item.querySelector('.btn-track-play').addEventListener('click', () => {
-        this.app.playTrackDirectly(track, tracks, idx);
-      });
-
-      item.querySelector('.btn-track-remove').addEventListener('click', async () => {
-        await window.api.removeTrackFromPlaylist(this.selectedPlaylist.id, idx);
-        this.selectedPlaylist.trackIds.splice(idx, 1);
-        this.renderPlaylistDetail(container);
-      });
-
-      const btnUp = item.querySelector('.btn-track-up');
-      const btnDown = item.querySelector('.btn-track-down');
-
-      if (btnUp && idx > 0) {
-        btnUp.addEventListener('click', async () => {
-          const ids = [...this.selectedPlaylist.trackIds];
-          const temp = ids[idx];
-          ids[idx] = ids[idx - 1];
-          ids[idx - 1] = temp;
-          await window.api.reorderPlaylistTracks(this.selectedPlaylist.id, ids);
-          this.selectedPlaylist.trackIds = ids;
+    const trackListEl = container.querySelector('#playlist-tracklist-container');
+    const plTrackList = new TrackList(this.app, {
+      showIndexColumn: true,
+      isPlaylist: true,
+      playlistId: this.selectedPlaylist.id,
+      onPlayTrack: (track, list, idx) => {
+        this.app.playTrackDirectly(track, list, idx);
+      },
+      onTrackRemoved: async (track, idx) => {
+        const foundIdx = this.selectedPlaylist.trackIds.indexOf(track.filePath);
+        if (foundIdx !== -1) {
+          await window.api.removeTrackFromPlaylist(this.selectedPlaylist.id, foundIdx);
+          this.selectedPlaylist.trackIds.splice(foundIdx, 1);
           this.renderPlaylistDetail(container);
-        });
+        }
       }
+    });
 
-      if (btnDown && idx < tracks.length - 1) {
+    plTrackList.setTracks(tracks);
+    plTrackList.render(trackListEl);
+  }
         btnDown.addEventListener('click', async () => {
           const ids = [...this.selectedPlaylist.trackIds];
           const temp = ids[idx];

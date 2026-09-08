@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, protocol, net, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const StorageManager = require('../db/storage');
@@ -17,6 +17,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#090d16',
     title: 'JustPlay - Offline Music Player',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -25,6 +26,7 @@ function createWindow() {
     }
   });
 
+  mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, '../ui/index.html'));
 
   mainWindow.on('closed', () => {
@@ -45,6 +47,7 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
     storage = new StorageManager();
     registerIpcHandlers();
     createWindow();
@@ -191,6 +194,35 @@ function registerIpcHandlers() {
   // Settings
   ipcMain.handle('db:getSettings', () => storage.getSettings());
   ipcMain.handle('db:updateSettings', (_, newSettings) => storage.updateSettings(newSettings));
+
+  // Image Dialog & Shell reveal
+  ipcMain.handle('dialog:openImage', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'webp'] }
+      ],
+      title: 'Selecionar Imagem de Plano de Fundo'
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('shell:showItemInFolder', (_, filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+      return true;
+    }
+    return false;
+  });
+
+  // Favorites & Library Folders
+  ipcMain.handle('db:toggleFavorite', (_, filePath) => storage.toggleFavorite(filePath));
+  ipcMain.handle('db:getFavorites', () => storage.getFavorites());
+  ipcMain.handle('db:addLibraryFolder', (_, folderPath) => storage.addLibraryFolder(folderPath));
+  ipcMain.handle('db:removeLibraryFolder', (_, folderPath) => storage.removeLibraryFolder(folderPath));
 
   // Window Controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());

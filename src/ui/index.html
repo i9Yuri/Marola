@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Custom Background Layers -->
+  <div id="app-bg-layer"></div>
+  <div id="app-bg-dimmer"></div>
+
   <div id="app-container">
     <!-- Sidebar Navigation -->
     <aside id="sidebar">
@@ -33,6 +37,13 @@
           </svg>
           Playlists & Ranking
         </li>
+        <li class="nav-item" id="nav-btn-settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Configurações
+        </li>
       </ul>
     </aside>
 
@@ -49,6 +60,12 @@
 
   <!-- Bottom Player Bar -->
   <footer id="player-bar"></footer>
+
+  <!-- Fullscreen Slide-Up Now Playing Overlay -->
+  <div id="now-playing-container"></div>
+
+  <!-- Settings Modal Container -->
+  <div id="settings-modal-container"></div>
 
   <!-- Generic Prompt Modal -->
   <div class="modal-overlay" id="generic-modal">
@@ -77,13 +94,17 @@
   <div class="toast-msg" id="toast-notification"></div>
 
   <!-- Scripts -->
+  <script src="../services/configStorage.js"></script>
   <script src="../audio/queue-manager.js"></script>
   <script src="../audio/audio-engine.js"></script>
+  <script src="components/TrackList.js"></script>
   <script src="components/PlayerBar.js"></script>
   <script src="components/HomeRecentView.js"></script>
   <script src="components/PlaylistsRankView.js"></script>
   <script src="components/QueueView.js"></script>
   <script src="components/LyricsView.js"></script>
+  <script src="components/NowPlayingView.js"></script>
+  <script src="components/SettingsModal.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

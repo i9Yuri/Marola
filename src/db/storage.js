@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const ConfigStorage = require('../services/configStorage');
 
 class StorageManager {
   constructor(customDbPath = null) {
@@ -8,13 +9,7 @@ class StorageManager {
       tracks: {}, // id (filePath) -> { id, filePath, title, artist, album, duration, coverDataUrl, play_count, last_played_at, added_at }
       playlists: [], // Array<{ id, name, createdAt, trackIds: string[] }>
       playlistOrder: [], // Array of playlist IDs for manual ordering
-      settings: {
-        crossfadeSeconds: 3,
-        volume: 0.8,
-        repeatMode: 'repeat-all', // 'sequential' | 'repeat-all' | 'repeat-one'
-        shuffle: false,
-        playlistSortBy: 'created' // 'created' | 'name' | 'manual'
-      }
+      settings: { ...ConfigStorage.DEFAULT_CONFIG }
     };
     this.init();
   }
@@ -280,16 +275,61 @@ class StorageManager {
     return pl.trackIds.map(id => this.data.tracks[id]).filter(Boolean);
   }
 
-  // --- Settings ---
+  // --- Settings & Preferences ---
 
   getSettings() {
     return { ...this.data.settings };
   }
 
   updateSettings(newSettings) {
-    this.data.settings = { ...this.data.settings, ...newSettings };
+    this.data.settings = ConfigStorage.sanitize(newSettings, this.data.settings);
     this.save();
     return this.data.settings;
+  }
+
+  // --- Favorites ---
+
+  toggleFavorite(filePath) {
+    if (!filePath) return { isFavorite: false, favorites: this.getFavorites() };
+    const favs = new Set(this.data.settings.favorites || []);
+    let isFav = false;
+    if (favs.has(filePath)) {
+      favs.delete(filePath);
+      isFav = false;
+    } else {
+      favs.add(filePath);
+      isFav = true;
+    }
+    this.data.settings.favorites = Array.from(favs);
+    this.save();
+    return { filePath, isFavorite: isFav, favorites: this.data.settings.favorites };
+  }
+
+  isFavorite(filePath) {
+    if (!filePath || !this.data.settings.favorites) return false;
+    return this.data.settings.favorites.includes(filePath);
+  }
+
+  getFavorites() {
+    return [...(this.data.settings.favorites || [])];
+  }
+
+  // --- Library Folders ---
+
+  addLibraryFolder(folderPath) {
+    if (!folderPath) return this.data.settings.libraryFolders || [];
+    const folders = new Set(this.data.settings.libraryFolders || []);
+    folders.add(folderPath);
+    this.data.settings.libraryFolders = Array.from(folders);
+    this.save();
+    return this.data.settings.libraryFolders;
+  }
+
+  removeLibraryFolder(folderPath) {
+    if (!folderPath || !this.data.settings.libraryFolders) return [];
+    this.data.settings.libraryFolders = this.data.settings.libraryFolders.filter(f => f !== folderPath);
+    this.save();
+    return this.data.settings.libraryFolders;
   }
 }
 
