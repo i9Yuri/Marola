@@ -52,15 +52,18 @@ class TopHeader {
 
           <div class="top-search-pill">
             <div class="top-search-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </div>
             <input type="text" id="top-search-input" placeholder="O que você quer ouvir?" spellcheck="false" autocomplete="off">
+            <div class="top-search-divider"></div>
             <button class="top-search-browse-btn" id="top-btn-browse" title="Adicionar pasta / Explorar arquivos">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                <path d="M8 15h8"></path>
+                <circle cx="12" cy="10" r="1" fill="currentColor"></circle>
               </svg>
             </button>
           </div>

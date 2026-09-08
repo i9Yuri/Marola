@@ -167,6 +167,17 @@ describe('UI Components Lifecycle & Instantiation', () => {
     assert.ok(th);
     th.setSearchTerm('rock');
     assert.strictEqual(th.searchTerm, 'rock');
+
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    th.mount(dummyContainer);
+    assert.ok(dummyContainer.innerHTML.includes('top-search-pill'));
+    assert.ok(dummyContainer.innerHTML.includes('top-search-divider'));
+    assert.ok(dummyContainer.innerHTML.includes('top-search-browse-btn'));
+    assert.ok(dummyContainer.innerHTML.includes('id="top-btn-browse"'));
   });
 
   test('LibraryRail instantiates and manages playlist state', () => {
@@ -230,5 +241,47 @@ describe('UI Components Lifecycle & Instantiation', () => {
     assert.ok(dummyContainer.innerHTML.includes('player-btn-fav'));
     assert.ok(dummyContainer.innerHTML.includes('btn-toggle-right-sidebar'));
     assert.ok(dummyContainer.innerHTML.includes('btn-fullscreen'));
+  });
+
+  test('HomeRecentView and styles.css enforce 1:1 aspect ratio and correct card markup', () => {
+    const homeView = new HomeRecentView(mockApp);
+    const quickGridEl = { innerHTML: '', querySelectorAll: () => [] };
+    const carouselEl = { innerHTML: '', querySelectorAll: () => [] };
+    const dummyContainer = {
+      innerHTML: '',
+      querySelector: (sel) => {
+        if (sel === '#quick-access-grid') return quickGridEl;
+        if (sel === '#cards-carousel-row') return carouselEl;
+        return null;
+      },
+      querySelectorAll: () => []
+    };
+    homeView.container = dummyContainer;
+
+    // Provide mock tracks with coverDataUrl
+    homeView.tracks = [
+      { id: '1', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera', duration: 354, play_count: 10, coverDataUrl: 'data:image/png;base64,cover1' },
+      { id: '2', title: 'Under Pressure', artist: 'Queen', album: 'Hot Space', duration: 248, play_count: 5, coverDataUrl: 'data:image/png;base64,cover2' }
+    ];
+
+    homeView._renderQuickGrid();
+    homeView._renderCarouselCards();
+
+    // Check rendered card classes
+    assert.ok(quickGridEl.innerHTML.includes('quick-card-cover'));
+    assert.ok(quickGridEl.innerHTML.includes('quick-card-cover-img'));
+    assert.ok(carouselEl.innerHTML.includes('card-item-cover-wrap'));
+    assert.ok(carouselEl.innerHTML.includes('card-item-cover-img'));
+
+    // Check CSS file directly to ensure aspect-ratio and object-fit rules are intact
+    const fs = require('fs');
+    const path = require('path');
+    const cssContent = fs.readFileSync(path.join(__dirname, '../src/ui/styles.css'), 'utf-8');
+
+    assert.ok(cssContent.includes('.card-item-cover-img {'));
+    assert.ok(cssContent.includes('.quick-card-cover-img {'));
+    assert.ok(cssContent.includes('aspect-ratio: 1 / 1;'));
+    assert.ok(cssContent.includes('object-fit: cover;'));
+    assert.ok(cssContent.includes('--player-bar-height: 88px;'));
   });
 });
