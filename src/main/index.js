@@ -192,6 +192,7 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getTopTracks', (_, limit) => storage.getTopTracks(limit));
   ipcMain.handle('db:getRecentTracks', (_, limit) => storage.getRecentTracks(limit));
   ipcMain.handle('db:getTopArtistsByTrackCount', (_, limit) => storage.getTopArtistsByTrackCount(limit));
+  ipcMain.handle('db:getTopAlbumsByTrackCount', (_, limit) => storage.getTopAlbumsByTrackCount(limit));
   ipcMain.handle('db:upsertTrack', (_, track) => storage.upsertTrack(track));
   ipcMain.handle('db:upsertTracksBatch', (_, tracks) => storage.upsertTracksBatch(tracks));
   ipcMain.handle('db:incrementPlayCount', (_, filePath) => storage.incrementPlayCount(filePath));

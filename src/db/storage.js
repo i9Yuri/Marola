@@ -217,7 +217,47 @@ class StorageManager {
   }
 
   /**
+  /**
+   * Helper to normalize and consolidate artist names.
+   * Collapses multiple whitespaces, trims, and extracts primary artist
+   * so multiple-artist tracks consolidate to the primary artist.
+   */
+  _extractPrimaryArtist(rawArtist) {
+    if (!rawArtist || typeof rawArtist !== 'string') return '';
+    const cleaned = rawArtist.replace(/\s+/g, ' ').trim();
+    if (!cleaned) return '';
+
+    // Check for "Tyler, The Creator" exception before splitting on comma
+    if (/^tyler,\s*the\s*creator/i.test(cleaned)) {
+      return 'Tyler, The Creator';
+    }
+
+    // Split on feat/ft/featuring
+    const featSplit = cleaned.split(/\s+(?:feat\.?|ft\.?|featuring)\s+/i);
+    let primary = featSplit[0].trim();
+
+    // Split on comma if multiple artists are listed
+    if (primary.includes(',')) {
+      const parts = primary.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        primary = parts[0];
+      }
+    }
+
+    // Split on semicolon or slash
+    if (primary.includes(';') || primary.includes('/')) {
+      const parts = primary.split(/[;/]/).map(p => p.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        primary = parts[0];
+      }
+    }
+
+    return primary.replace(/\s+/g, ' ').trim();
+  }
+
+  /**
    * Aggregates and ranks artists by total indexed track count.
+   * Consolidates multiple-artist tags to the primary artist.
    * @param {number} [limit=10]
    * @param {Object} [options={ activeOnly: true }]
    * @returns {Array<{ name: string, trackCount: number, coverDataUrl: string|null, tracks: Array<Object> }>}
@@ -227,30 +267,124 @@ class StorageManager {
     const artistMap = new Map();
 
     for (const track of allTracks) {
-      const name = (track.artist || '').trim();
-      if (!name || name.toLowerCase() === 'artista desconhecido' || name.toLowerCase() === 'unknown artist' || name.toLowerCase() === 'unknown') {
+      const rawArtist = (track.artist || '').trim();
+      const primary = this._extractPrimaryArtist(rawArtist);
+
+      if (
+        !primary ||
+        primary.toLowerCase() === 'artista desconhecido' ||
+        primary.toLowerCase() === 'unknown artist' ||
+        primary.toLowerCase() === 'unknown'
+      ) {
         continue;
       }
-      const key = name.toLowerCase();
+
+      const key = primary.toLowerCase();
       if (!artistMap.has(key)) {
         artistMap.set(key, {
-          name,
+          name: primary,
           trackCount: 0,
           coverDataUrl: null,
           tracks: []
         });
       }
+
       const entry = artistMap.get(key);
       entry.trackCount++;
       entry.tracks.push(track);
       if (!entry.coverDataUrl && track.coverDataUrl) {
         entry.coverDataUrl = track.coverDataUrl;
       }
+      // If current primary has better casing (e.g. uppercase letters), keep cleanest
+      if (entry.name === entry.name.toLowerCase() && primary !== primary.toLowerCase()) {
+        entry.name = primary;
+      }
     }
 
     return Array.from(artistMap.values())
       .sort((a, b) => b.trackCount - a.trackCount)
       .slice(0, limit);
+  }
+
+  /**
+   * Aggregates and ranks albums by track count.
+   * Unknown/null/empty album entries are strictly positioned as the LAST entry,
+   * never at the beginning, regardless of track count.
+   * @param {number} [limit=20]
+   * @param {Object} [options={ activeOnly: true }]
+   * @returns {Array<{ name: string, artist: string, year: string|number|null, trackCount: number, coverDataUrl: string|null, tracks: Array<Object>, isUnknown: boolean }>}
+   */
+  getTopAlbumsByTrackCount(limit = 20, options = { activeOnly: true }) {
+    const allTracks = this.getAllTracks(options);
+    const albumMap = new Map();
+
+    const isUnknownAlbumName = (name) => {
+      if (!name) return true;
+      const lower = name.trim().toLowerCase();
+      return (
+        lower === '' ||
+        lower === 'álbum desconhecido' ||
+        lower === 'album desconhecido' ||
+        lower === 'unknown album' ||
+        lower === 'unknown'
+      );
+    };
+
+    let unknownEntry = null;
+
+    for (const track of allTracks) {
+      const rawAlbum = (track.album || '').replace(/\s+/g, ' ').trim();
+      const isUnknown = isUnknownAlbumName(rawAlbum);
+      const name = isUnknown ? 'Álbum Desconhecido' : rawAlbum;
+      const key = name.toLowerCase();
+
+      if (!albumMap.has(key)) {
+        albumMap.set(key, {
+          name,
+          artist: track.artist || 'Vários Artistas',
+          year: track.year || null,
+          trackCount: 0,
+          coverDataUrl: null,
+          tracks: [],
+          isUnknown
+        });
+      }
+
+      const entry = albumMap.get(key);
+      entry.trackCount++;
+      entry.tracks.push(track);
+      if (!entry.coverDataUrl && track.coverDataUrl) {
+        entry.coverDataUrl = track.coverDataUrl;
+      }
+      if (!entry.year && track.year) {
+        entry.year = track.year;
+      }
+    }
+
+    const known = [];
+    for (const entry of albumMap.values()) {
+      if (entry.isUnknown) {
+        unknownEntry = entry;
+      } else {
+        known.push(entry);
+      }
+    }
+
+    // Sort known albums strictly by trackCount DESC, then title ASC
+    known.sort((a, b) => {
+      if (b.trackCount !== a.trackCount) {
+        return b.trackCount - a.trackCount;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    const maxKnown = unknownEntry ? Math.max(0, limit - 1) : limit;
+    const slicedKnown = known.slice(0, maxKnown);
+
+    if (unknownEntry) {
+      return [...slicedKnown, unknownEntry];
+    }
+    return slicedKnown;
   }
 
   // --- Playlist CRUD & Ordering ---

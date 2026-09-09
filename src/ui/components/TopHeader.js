@@ -108,10 +108,26 @@ class TopHeader {
     btnForward?.addEventListener('click', () => this.options.onNavigateForward());
     btnHome?.addEventListener('click', () => this.options.onHomeClick());
 
+    let searchDebounceTimer = null;
+    const triggerSearch = (val) => {
+      this.searchTerm = val;
+      if (this.options.onSearchInput) this.options.onSearchInput(val);
+      if (this.options.onSearch) this.options.onSearch(val);
+    };
+
     searchInput?.addEventListener('input', (e) => {
-      this.searchTerm = e.target.value;
-      if (this.options.onSearchInput) this.options.onSearchInput(e.target.value);
-      if (this.options.onSearch) this.options.onSearch(e.target.value);
+      const val = e.target.value;
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        triggerSearch(val);
+      }, 200);
+    });
+
+    searchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(searchDebounceTimer);
+        triggerSearch(e.target.value);
+      }
     });
 
     btnBrowse?.addEventListener('click', () => {

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   incrementPlayCount: (filePath) => ipcRenderer.invoke('db:incrementPlayCount', filePath),
   getArtistStats: (artist) => ipcRenderer.invoke('db:getArtistStats', artist),
   getTopArtistsByTrackCount: (limit) => ipcRenderer.invoke('db:getTopArtistsByTrackCount', limit),
+  getTopAlbumsByTrackCount: (limit) => ipcRenderer.invoke('db:getTopAlbumsByTrackCount', limit),
 
   // Playlists
   getPlaylists: (sortBy) => ipcRenderer.invoke('db:getPlaylists', sortBy),

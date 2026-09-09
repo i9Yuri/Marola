@@ -20,13 +20,6 @@ class HomeRecentView {
     this.container = null;
     this.searchTerm = '';
     this.activeCategory = 'all'; // 'all' | 'music' | 'artists' | 'albums' | 'playlists'
-
-    this.trackList = new _TrackListHome(this.app, {
-      showIndexColumn: true,
-      onPlayTrack: (track, list, index) => {
-        this.app.playTrackDirectly(track, list, index);
-      }
-    });
   }
 
   mount(containerElement) {
@@ -105,30 +98,6 @@ class HomeRecentView {
           </div>
           <div class="horizontal-carousel-row" id="cards-carousel-row">
             <!-- Vertical album/track cards rendered here -->
-          </div>
-        </div>
-
-        <!-- Section 5: Detailed Library Tracklist -->
-        <div class="home-section-container" id="section-library-table">
-          <div class="home-section-header" style="margin-top: 16px;">
-            <div style="display: flex; align-items: baseline; gap: 12px;">
-              <h2 class="home-section-title">Todas as Músicas da Biblioteca</h2>
-              <span class="home-section-count" id="library-count-text">Carregando músicas...</span>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary btn-sm" id="btn-add-files" title="Adicionar arquivos avulsos">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-                Adicionar Arquivos
-              </button>
-              <button class="btn btn-primary btn-sm" id="btn-add-folder" title="Escanear pasta inteira">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
-                Adicionar Pasta
-              </button>
-            </div>
-          </div>
-
-          <div class="view-body" id="library-body">
-            <!-- TrackList injected here -->
           </div>
         </div>
       </div>
@@ -214,11 +183,6 @@ class HomeRecentView {
       onNavigate: () => {
         if (this.app.openLikedSongs) {
           this.app.openLikedSongs();
-        } else {
-          this.setActiveFilter('all');
-          this.filterByFavorites();
-          const body = this.container?.querySelector('#library-body');
-          body?.scrollIntoView({ behavior: 'smooth' });
         }
       },
       onPlay: async () => {
@@ -232,8 +196,37 @@ class HomeRecentView {
       }
     });
 
-    // Cards: User playlists (up to 7 to fill 2x4 grid)
-    this.playlists.slice(0, 7).forEach(pl => {
+    // Card 2: Todas as Músicas da Biblioteca
+    cards.push({
+      id: 'all-tracks',
+      type: 'all-tracks',
+      title: 'Todas as Músicas',
+      subtitle: `${this.tracks.length} músicas`,
+      coverHtml: `
+        <div class="quick-card-cover-all-tracks">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+      `,
+      onNavigate: () => {
+        if (this.app.openAllTracks) {
+          this.app.openAllTracks();
+        }
+      },
+      onPlay: () => {
+        if (this.tracks.length > 0) {
+          this.app.setQueueAndPlay(this.tracks, 0);
+        } else {
+          this.app.showToast('Nenhuma música encontrada.');
+        }
+      }
+    });
+
+    // Cards: User playlists (up to 6 to fill 2x4 grid)
+    this.playlists.slice(0, 6).forEach(pl => {
       const count = pl.trackIds ? pl.trackIds.length : 0;
       const initials = (pl.name || 'PL').slice(0, 2).toUpperCase();
       cards.push({
@@ -288,10 +281,17 @@ class HomeRecentView {
             ? `<img src="${sampleTrack.coverDataUrl}" alt="${this._escapeHtml(albumName)}" class="quick-card-cover-img">`
             : `<div class="quick-card-cover-pl"><span>${albumName.slice(0, 2).toUpperCase()}</span></div>`,
           onNavigate: () => {
-            if (this.app.views?.topHeader) {
-              this.app.views.topHeader.setSearchTerm(albumName);
+            if (this.app.openAlbum) {
+              this.app.openAlbum({
+                name: albumName,
+                artist: sampleTrack.artist,
+                year: sampleTrack.year,
+                tracks: albumTracks,
+                coverDataUrl: sampleTrack.coverDataUrl
+              });
+            } else {
+              this.app.setQueueAndPlay(albumTracks, 0);
             }
-            this.setSearchTerm(albumName);
           },
           onPlay: () => {
             this.app.setQueueAndPlay(albumTracks, 0);
@@ -485,29 +485,83 @@ class HomeRecentView {
     });
   }
 
-  _renderAlbumsCarousel() {
+  async _renderAlbumsCarousel() {
     const row = this.container?.querySelector('#albums-carousel');
     const sec = this.container?.querySelector('#section-albums');
     if (!row) return;
 
-    // Group unique albums
-    const albumMap = new Map();
-    this.tracks.forEach(t => {
-      const name = (t.album || '').trim();
-      if (!name) return;
-      if (!albumMap.has(name)) {
-        albumMap.set(name, { name, artist: t.artist, year: t.year, tracks: [], coverDataUrl: t.coverDataUrl });
+    let albums = [];
+    if (typeof window !== 'undefined' && window.api?.getTopAlbumsByTrackCount) {
+      try {
+        albums = await window.api.getTopAlbumsByTrackCount(20);
+      } catch (e) {
+        albums = [];
       }
-      const entry = albumMap.get(name);
-      entry.tracks.push(t);
-      if (!entry.coverDataUrl && t.coverDataUrl) {
-        entry.coverDataUrl = t.coverDataUrl;
-      }
-    });
+    }
 
-    const albums = Array.from(albumMap.values())
-      .sort((a, b) => b.tracks.length - a.tracks.length)
-      .slice(0, 10);
+    if (!albums || albums.length === 0) {
+      const albumMap = new Map();
+      let unknownEntry = null;
+
+      const isUnknownAlbumName = (name) => {
+        if (!name) return true;
+        const lower = name.trim().toLowerCase();
+        return (
+          lower === '' ||
+          lower === 'álbum desconhecido' ||
+          lower === 'album desconhecido' ||
+          lower === 'unknown album' ||
+          lower === 'unknown'
+        );
+      };
+
+      this.tracks.forEach(t => {
+        const raw = (t.album || '').replace(/\s+/g, ' ').trim();
+        const isUnknown = isUnknownAlbumName(raw);
+        const name = isUnknown ? 'Álbum Desconhecido' : raw;
+        const key = name.toLowerCase();
+
+        if (!albumMap.has(key)) {
+          albumMap.set(key, {
+            name,
+            artist: t.artist || 'Vários Artistas',
+            year: t.year || null,
+            tracks: [],
+            coverDataUrl: t.coverDataUrl,
+            isUnknown
+          });
+        }
+        const entry = albumMap.get(key);
+        entry.tracks.push(t);
+        if (!entry.coverDataUrl && t.coverDataUrl) {
+          entry.coverDataUrl = t.coverDataUrl;
+        }
+        if (!entry.year && t.year) {
+          entry.year = t.year;
+        }
+      });
+
+      const known = [];
+      for (const entry of albumMap.values()) {
+        if (entry.isUnknown) {
+          unknownEntry = entry;
+        } else {
+          known.push(entry);
+        }
+      }
+
+      known.sort((a, b) => {
+        if (b.tracks.length !== a.tracks.length) {
+          return b.tracks.length - a.tracks.length;
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      albums = known.slice(0, unknownEntry ? 19 : 20);
+      if (unknownEntry) {
+        albums.push(unknownEntry);
+      }
+    }
 
     if (albums.length === 0) {
       if (sec) sec.style.display = 'none';
@@ -517,6 +571,7 @@ class HomeRecentView {
 
     let html = '';
     albums.forEach((alb, idx) => {
+      const trackCount = alb.trackCount || alb.tracks?.length || 0;
       const cover = alb.coverDataUrl
         ? `<img src="${alb.coverDataUrl}" alt="${this._escapeHtml(alb.name)}" class="card-item-cover-img" loading="lazy">`
         : `<div class="card-item-cover-fallback">
@@ -532,7 +587,7 @@ class HomeRecentView {
             </button>
           </div>
           <h4 class="card-item-title">${this._escapeHtml(alb.name)}</h4>
-          <span class="card-item-subtitle">${this._escapeHtml(alb.artist || 'Vários')} • ${alb.tracks.length} faixa${alb.tracks.length === 1 ? '' : 's'}</span>
+          <span class="card-item-subtitle">${this._escapeHtml(alb.artist || 'Vários')} • ${trackCount} faixa${trackCount === 1 ? '' : 's'}</span>
         </div>
       `;
     });
@@ -545,17 +600,16 @@ class HomeRecentView {
       if (!alb) return;
 
       el.addEventListener('click', (e) => {
-        // If play button clicked directly, play all album tracks
         if (e.target.closest('.card-item-play-btn')) {
           e.stopPropagation();
           this.app.setQueueAndPlay(alb.tracks, 0);
           return;
         }
-        // Clicking card body filters library search by album
-        if (this.app.views?.topHeader) {
-          this.app.views.topHeader.setSearchTerm(alb.name);
+        if (this.app.openAlbum) {
+          this.app.openAlbum(alb);
+        } else {
+          this.app.setQueueAndPlay(alb.tracks, 0);
         }
-        this.setSearchTerm(alb.name);
       });
     });
   }
@@ -677,73 +731,48 @@ class HomeRecentView {
     const secArtists = this.container?.querySelector('#section-artists');
     const secAlbums = this.container?.querySelector('#section-albums');
     const secRecent = this.container?.querySelector('#section-recent-carousel');
-    const secTable = this.container?.querySelector('#section-library-table');
     const secQuick = this.container?.querySelector('#quick-access-grid');
 
     // Control section visibility according to category chip
     if (this.activeCategory === 'music') {
+      if (secTop) secTop.style.display = 'block';
       if (secArtists) secArtists.style.display = 'none';
-      if (secAlbums) secAlbums.style.display = 'none';
+      if (secAlbums) secAlbums.style.display = 'block';
       if (secRecent) secRecent.style.display = 'block';
-      if (secTable) secTable.style.display = 'block';
       if (secQuick) secQuick.style.display = 'grid';
     } else if (this.activeCategory === 'artists') {
       if (secTop) secTop.style.display = 'none';
       if (secArtists) secArtists.style.display = 'block';
       if (secAlbums) secAlbums.style.display = 'none';
       if (secRecent) secRecent.style.display = 'none';
-      if (secTable) secTable.style.display = 'block';
       if (secQuick) secQuick.style.display = 'none';
     } else if (this.activeCategory === 'albums') {
       if (secTop) secTop.style.display = 'none';
       if (secArtists) secArtists.style.display = 'none';
       if (secAlbums) secAlbums.style.display = 'block';
       if (secRecent) secRecent.style.display = 'none';
-      if (secTable) secTable.style.display = 'block';
       if (secQuick) secQuick.style.display = 'none';
     } else if (this.activeCategory === 'playlists') {
       if (secTop) secTop.style.display = 'none';
       if (secArtists) secArtists.style.display = 'none';
       if (secAlbums) secAlbums.style.display = 'none';
       if (secRecent) secRecent.style.display = 'none';
-      if (secTable) secTable.style.display = 'none';
       if (secQuick) secQuick.style.display = 'grid';
-      return;
     } else {
       // 'all'
+      if (secTop) secTop.style.display = 'block';
       if (secArtists) secArtists.style.display = 'block';
       if (secAlbums) secAlbums.style.display = 'block';
       if (secRecent) secRecent.style.display = 'block';
-      if (secTable) secTable.style.display = 'block';
       if (secQuick) secQuick.style.display = 'grid';
     }
-
-    // Filter by search term
-    if (this.searchTerm) {
-      list = list.filter(t =>
-        (t.title && t.title.toLowerCase().includes(this.searchTerm)) ||
-        (t.artist && t.artist.toLowerCase().includes(this.searchTerm)) ||
-        (t.album && t.album.toLowerCase().includes(this.searchTerm))
-      );
-    }
-
-    this.filteredTracks = list;
-
-    const countText = this.container?.querySelector('#library-count-text');
-    if (countText) {
-      countText.textContent = `${this.filteredTracks.length} faixa${this.filteredTracks.length === 1 ? '' : 's'}`;
-    }
-
-    const body = this.container?.querySelector('#library-body');
-    if (!body) return;
-
-    this.trackList.setTracks(this.filteredTracks);
-    this.trackList.render(body);
   }
 
   setSearchTerm(term) {
     this.searchTerm = (term || '').toLowerCase().trim();
-    this.filterAndRender();
+    if (this.searchTerm && this.app.openSearch) {
+      this.app.openSearch(this.searchTerm);
+    }
   }
 
   setActiveFilter(category) {
@@ -755,17 +784,9 @@ class HomeRecentView {
   }
 
   filterByFavorites() {
-    if (!Array.isArray(this.tracks)) return;
-    const favSet = this.app.favoritesSet || new Set();
-    this.filteredTracks = this.tracks.filter(t => favSet.has(t.filePath));
-    const countText = this.container?.querySelector('#library-count-text');
-    if (countText) {
-      countText.textContent = `${this.filteredTracks.length} favoritas`;
+    if (this.app.openLikedSongs) {
+      this.app.openLikedSongs();
     }
-    const body = this.container?.querySelector('#library-body');
-    if (!body) return;
-    this.trackList.setTracks(this.filteredTracks);
-    this.trackList.render(body);
   }
 
   _escapeHtml(str) {

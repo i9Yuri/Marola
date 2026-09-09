@@ -33,23 +33,53 @@ async function initApp() {
     switchView(target) {
       this.currentView = target;
       const recentContainer = document.getElementById('view-recent-container');
+      const allTracksContainer = document.getElementById('view-all-tracks-container');
+      const searchContainer = document.getElementById('view-search-container');
       const playlistsContainer = document.getElementById('view-playlists-container');
       const playlistDetailContainer = document.getElementById('view-playlist-detail-container');
 
-      if (target === 'recent') {
-        if (recentContainer) recentContainer.style.display = 'flex';
-        if (playlistsContainer) playlistsContainer.style.display = 'none';
-        if (playlistDetailContainer) playlistDetailContainer.style.display = 'none';
-        if (this.views.recent) this.views.recent.loadTracks();
-      } else if (target === 'playlists') {
-        if (recentContainer) recentContainer.style.display = 'none';
-        if (playlistsContainer) playlistsContainer.style.display = 'flex';
-        if (playlistDetailContainer) playlistDetailContainer.style.display = 'none';
-        if (this.views.playlists) this.views.playlists.loadData();
-      } else if (target === 'playlist-detail') {
-        if (recentContainer) recentContainer.style.display = 'none';
-        if (playlistsContainer) playlistsContainer.style.display = 'none';
-        if (playlistDetailContainer) playlistDetailContainer.style.display = 'flex';
+      if (recentContainer) recentContainer.style.display = target === 'recent' ? 'flex' : 'none';
+      if (allTracksContainer) allTracksContainer.style.display = target === 'all-tracks' ? 'flex' : 'none';
+      if (searchContainer) searchContainer.style.display = target === 'search' ? 'flex' : 'none';
+      if (playlistsContainer) playlistsContainer.style.display = target === 'playlists' ? 'flex' : 'none';
+      if (playlistDetailContainer) playlistDetailContainer.style.display = target === 'playlist-detail' ? 'flex' : 'none';
+
+      if (target === 'recent' && this.views.recent) {
+        this.views.recent.loadTracks();
+      } else if (target === 'all-tracks' && this.views.allTracks) {
+        this.views.allTracks.loadTracks();
+      } else if (target === 'playlists' && this.views.playlists) {
+        this.views.playlists.loadData();
+      }
+    },
+
+    async openAllTracks() {
+      this.switchView('all-tracks');
+      if (this.views.allTracks) {
+        await this.views.allTracks.loadTracks();
+      }
+    },
+
+    async openAlbum(album) {
+      this.switchView('playlist-detail');
+      if (this.views.playlistDetail) {
+        await this.views.playlistDetail.loadPlaylist({
+          ...album,
+          type: 'album'
+        });
+      }
+    },
+
+    async openSearch(query) {
+      if (!query || !query.trim()) {
+        if (this.currentView === 'search') {
+          this.switchView('recent');
+        }
+        return;
+      }
+      this.switchView('search');
+      if (this.views.search) {
+        await this.views.search.setQuery(query);
       }
     },
 
@@ -287,6 +317,8 @@ async function initApp() {
   const libraryRailContainer = document.getElementById('sidebar-rail-container');
   const sidebarRightContainer = document.getElementById('sidebar-right-container');
   const recentViewContainer = document.getElementById('view-recent-container');
+  const allTracksContainer = document.getElementById('view-all-tracks-container');
+  const searchContainer = document.getElementById('view-search-container');
   const playlistsViewContainer = document.getElementById('view-playlists-container');
   const playlistDetailContainer = document.getElementById('view-playlist-detail-container');
   const queueDrawerContainer = document.getElementById('queue-drawer-container');
@@ -299,6 +331,8 @@ async function initApp() {
   let libraryRail = null;
   let sidebarRight = null;
   let homeRecentView = null;
+  let allTracksView = null;
+  let searchView = null;
   let playlistsRankView = null;
   let playlistDetailView = null;
   let queueView = null;
@@ -313,6 +347,22 @@ async function initApp() {
     if (recentViewContainer) homeRecentView.mount(recentViewContainer);
   } catch (e) {
     console.error('[Renderer] Error mounting HomeRecentView:', e);
+  }
+
+  try {
+    allTracksView = new AllTracksView(app);
+    app.views.allTracks = allTracksView;
+    if (allTracksContainer) allTracksView.mount(allTracksContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting AllTracksView:', e);
+  }
+
+  try {
+    searchView = new SearchView(app);
+    app.views.search = searchView;
+    if (searchContainer) searchView.mount(searchContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting SearchView:', e);
   }
 
   try {
@@ -366,15 +416,15 @@ async function initApp() {
   try {
     topHeader = new TopHeader(app, {
       onSearch: (term) => {
-        if (app.currentView !== 'recent') {
+        if (term && term.trim()) {
+          app.openSearch(term);
+        } else if (app.currentView === 'search') {
           app.switchView('recent');
         }
-        homeRecentView?.setSearchTerm(term);
       },
       onHomeClick: () => {
         app.switchView('recent');
-        homeRecentView?.setSearchTerm('');
-        homeRecentView?.setActiveFilter('all');
+        topHeader?.setSearchValue('');
       },
       onBrowseFolder: async () => {
         const folder = await window.api.openFolderDialog();
@@ -387,6 +437,9 @@ async function initApp() {
             await window.api.parseMetadataBatch(audioFiles);
             app.showToast('Faixas adicionadas à biblioteca!');
             await homeRecentView?.loadTracks();
+            if (app.currentView === 'all-tracks') {
+              await allTracksView?.loadTracks();
+            }
           }
         }
       },
@@ -519,8 +572,11 @@ async function initApp() {
 
   // Synchronize playing equalizer animation and paused state across views
   const updateAllTrackLists = () => {
-    if (homeRecentView?.trackList?.updatePlayingState) {
-      homeRecentView.trackList.updatePlayingState();
+    if (allTracksView?.updatePlayingState) {
+      allTracksView.updatePlayingState();
+    }
+    if (searchView?.updatePlayingState) {
+      searchView.updatePlayingState();
     }
     if (playlistsRankView?.trackList?.updatePlayingState) {
       playlistsRankView.trackList.updatePlayingState();

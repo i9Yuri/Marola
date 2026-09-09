@@ -3,6 +3,8 @@ const assert = require('node:assert');
 
 const TrackList = require('../src/ui/components/TrackList');
 const HomeRecentView = require('../src/ui/components/HomeRecentView');
+const AllTracksView = require('../src/ui/components/AllTracksView');
+const SearchView = require('../src/ui/components/SearchView');
 const PlaylistsRankView = require('../src/ui/components/PlaylistsRankView');
 const QueueView = require('../src/ui/components/QueueView');
 const LyricsView = require('../src/ui/components/LyricsView');
@@ -31,7 +33,7 @@ describe('UI Components Lifecycle & Instantiation', () => {
     currentView: 'recent',
     views: {},
     favoritesSet: new Set(),
-    isFavorite: (fp) => mockApp.favoritesSet.has(fp),
+    isFavorite: () => false,
     syncFavorites: (f) => { mockApp.favoritesSet = new Set(f || []); },
     showToast: () => {},
     applyTheme: () => {},
@@ -43,6 +45,8 @@ describe('UI Components Lifecycle & Instantiation', () => {
   test('All UI component classes are defined and instantiable', () => {
     assert.ok(typeof TrackList === 'function');
     assert.ok(typeof HomeRecentView === 'function');
+    assert.ok(typeof AllTracksView === 'function');
+    assert.ok(typeof SearchView === 'function');
     assert.ok(typeof PlaylistsRankView === 'function');
     assert.ok(typeof QueueView === 'function');
     assert.ok(typeof LyricsView === 'function');
@@ -52,7 +56,12 @@ describe('UI Components Lifecycle & Instantiation', () => {
 
     const homeView = new HomeRecentView(mockApp);
     assert.ok(homeView);
-    assert.ok(homeView.trackList instanceof TrackList);
+
+    const allTracksView = new AllTracksView(mockApp);
+    assert.ok(allTracksView);
+
+    const searchView = new SearchView(mockApp);
+    assert.ok(searchView);
 
     const plView = new PlaylistsRankView(mockApp);
     assert.ok(plView);
@@ -74,27 +83,27 @@ describe('UI Components Lifecycle & Instantiation', () => {
     assert.ok(pBar);
   });
 
-  test('HomeRecentView filters tracks accurately without mutating originals', () => {
-    const homeView = new HomeRecentView(mockApp);
-    homeView.tracks = [
+  test('AllTracksView filters tracks accurately without mutating originals', () => {
+    const atView = new AllTracksView(mockApp);
+    atView.tracks = [
       { filePath: '/a.mp3', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'Opera' },
       { filePath: '/b.mp3', title: 'Starman', artist: 'David Bowie', album: 'Ziggy' },
       { filePath: '/c.mp3', title: 'Radioactive', artist: 'Imagine Dragons', album: 'Night' }
     ];
 
-    homeView.searchTerm = 'queen';
-    homeView.filterAndRender();
-    assert.strictEqual(homeView.filteredTracks.length, 1);
-    assert.strictEqual(homeView.filteredTracks[0].title, 'Bohemian Rhapsody');
+    atView.searchTerm = 'queen';
+    atView._applyFilterAndSort();
+    assert.strictEqual(atView.displayTracks.length, 1);
+    assert.strictEqual(atView.displayTracks[0].title, 'Bohemian Rhapsody');
 
-    homeView.searchTerm = 'night';
-    homeView.filterAndRender();
-    assert.strictEqual(homeView.filteredTracks.length, 1);
-    assert.strictEqual(homeView.filteredTracks[0].artist, 'Imagine Dragons');
+    atView.searchTerm = 'night';
+    atView._applyFilterAndSort();
+    assert.strictEqual(atView.displayTracks.length, 1);
+    assert.strictEqual(atView.displayTracks[0].artist, 'Imagine Dragons');
 
-    homeView.searchTerm = '';
-    homeView.filterAndRender();
-    assert.strictEqual(homeView.filteredTracks.length, 3);
+    atView.searchTerm = '';
+    atView._applyFilterAndSort();
+    assert.strictEqual(atView.displayTracks.length, 3);
   });
 
   test('SettingsModal syncState and background UI logic', () => {

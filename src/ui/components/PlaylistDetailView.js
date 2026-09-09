@@ -37,6 +37,8 @@ class PlaylistDetailView {
 
     if (playlist.type === 'liked' || playlist.id === 'liked') {
       await this._loadLikedSongs();
+    } else if (playlist.type === 'album') {
+      await this._loadAlbumTracks();
     } else {
       await this._loadPlaylistTracks();
     }
@@ -66,6 +68,25 @@ class PlaylistDetailView {
 
     const favSet = this.app.favoritesSet || new Set();
     this.tracks = (allTracks || []).filter(t => favSet.has(t.filePath));
+  }
+
+  async _loadAlbumTracks() {
+    if (Array.isArray(this.playlist.tracks) && this.playlist.tracks.length > 0) {
+      this.tracks = [...this.playlist.tracks];
+      return;
+    }
+    let allTracks = [];
+    if (typeof window !== 'undefined' && window.api?.getTracks) {
+      try {
+        allTracks = await window.api.getTracks();
+      } catch (e) {
+        allTracks = [];
+      }
+    } else if (Array.isArray(this.app.views?.recent?.tracks)) {
+      allTracks = this.app.views.recent.tracks;
+    }
+    const albumName = (this.playlist.name || '').trim().toLowerCase();
+    this.tracks = (allTracks || []).filter(t => (t.album || '').trim().toLowerCase() === albumName);
   }
 
   async _loadPlaylistTracks() {
@@ -111,12 +132,32 @@ class PlaylistDetailView {
     if (!this.container) return;
 
     const isLiked = this.playlist?.type === 'liked' || this.playlist?.id === 'liked';
+    const isAlbum = this.playlist?.type === 'album';
     const totalTracks = this.sortedTracks.length;
     const durationAggregate = this._formatAggregateDuration(this.sortedTracks);
-    const coverMarkup = this._getHeroCoverHtml(isLiked);
+    const coverMarkup = this._getHeroCoverHtml(isLiked, isAlbum);
 
     const isShuffleActive = Boolean(this.app.queueManager?.shuffle);
     const isPlayingThis = this._isPlaylistPlaying();
+
+    const tagText = isAlbum ? 'Álbum' : 'Playlist';
+    const authorLineHtml = isAlbum
+      ? `
+        <span class="playlist-author-name" style="font-weight: 700;">${this._escapeHtml(this.playlist?.artist || 'Vários Artistas')}</span>
+        ${this.playlist?.year ? `<span class="meta-bullet">•</span><span class="playlist-author-name">${this._escapeHtml(String(this.playlist.year))}</span>` : ''}
+        <span class="meta-bullet">•</span>
+        <span class="playlist-count-label">${totalTracks} música${totalTracks === 1 ? '' : 's'}</span>
+        ${durationAggregate ? `<span class="meta-bullet">•</span><span class="playlist-duration-label">${durationAggregate}</span>` : ''}
+      `
+      : `
+        <div class="playlist-author-avatar">
+          <span>${this.userName.charAt(0).toUpperCase()}</span>
+        </div>
+        <span class="playlist-author-name">${this.userName}</span>
+        <span class="meta-bullet">•</span>
+        <span class="playlist-count-label">${totalTracks} música${totalTracks === 1 ? '' : 's'}</span>
+        ${durationAggregate ? `<span class="meta-bullet">•</span><span class="playlist-duration-label">${durationAggregate}</span>` : ''}
+      `;
 
     this.container.innerHTML = `
       <div class="playlist-detail-scrollable">
@@ -127,18 +168,12 @@ class PlaylistDetailView {
               ${coverMarkup}
             </div>
             <div class="playlist-hero-meta">
-              <span class="playlist-badge-tag">Playlist</span>
+              <span class="playlist-badge-tag">${tagText}</span>
               <h1 class="playlist-title-headline" title="${this._escapeHtml(this.playlist?.name || 'Playlist')}">
                 ${this._escapeHtml(this.playlist?.name || 'Playlist')}
               </h1>
               <div class="playlist-author-line">
-                <div class="playlist-author-avatar">
-                  <span>${this.userName.charAt(0).toUpperCase()}</span>
-                </div>
-                <span class="playlist-author-name">${this.userName}</span>
-                <span class="meta-bullet">•</span>
-                <span class="playlist-count-label">${totalTracks} música${totalTracks === 1 ? '' : 's'}</span>
-                ${durationAggregate ? `<span class="meta-bullet">•</span><span class="playlist-duration-label">${durationAggregate}</span>` : ''}
+                ${authorLineHtml}
               </div>
             </div>
           </div>
@@ -224,7 +259,7 @@ class PlaylistDetailView {
     this._bindEvents();
   }
 
-  _getHeroCoverHtml(isLiked) {
+  _getHeroCoverHtml(isLiked, isAlbum) {
     if (isLiked) {
       return `
         <div class="hero-cover-liked-gradient">
@@ -233,6 +268,16 @@ class PlaylistDetailView {
           </svg>
         </div>
       `;
+    }
+
+    if (isAlbum) {
+      if (this.playlist?.coverDataUrl) {
+        return `<img src="${this.playlist.coverDataUrl}" alt="Capa do álbum" class="hero-cover-img">`;
+      }
+      const trackWithCover = (this.tracks || []).find(t => t.coverDataUrl);
+      if (trackWithCover) {
+        return `<img src="${trackWithCover.coverDataUrl}" alt="Capa do álbum" class="hero-cover-img">`;
+      }
     }
 
     if (this.playlist?.customCoverUrl) {
