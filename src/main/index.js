@@ -5,7 +5,7 @@ const StorageManager = require('../db/storage');
 const LibraryScanner = require('../services/libraryScanner');
 const { parseAudioMetadata, findAdjacentLrc, parseLrc } = require('../metadata/tags');
 
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a']);
+const AUDIO_EXTENSIONS = LibraryScanner.AUDIO_EXTENSIONS;
 
 let mainWindow = null;
 let storage = null;
@@ -87,7 +87,10 @@ function registerIpcHandlers() {
       await fs.promises.access(selected, fs.constants.R_OK);
       return selected;
     } catch (e) {
-      console.warn('[Main] Selected folder does not have read permissions:', selected);
+      if (fs.existsSync(selected)) {
+        return selected;
+      }
+      console.warn('[Main] Selected folder does not have read permissions or does not exist:', selected);
       return null;
     }
   });
@@ -105,7 +108,10 @@ function registerIpcHandlers() {
       await fs.promises.access(selected, fs.constants.R_OK);
       return selected;
     } catch (e) {
-      console.warn('[Main] Selected folder does not have read permissions:', selected);
+      if (fs.existsSync(selected)) {
+        return selected;
+      }
+      console.warn('[Main] Selected folder does not have read permissions or does not exist:', selected);
       return null;
     }
   });
@@ -114,7 +120,7 @@ function registerIpcHandlers() {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'Arquivos de Áudio', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a'] }
+        { name: 'Arquivos de Áudio', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a', 'aac'] }
       ],
       title: 'Selecionar Arquivos de Áudio'
     });
@@ -126,35 +132,13 @@ function registerIpcHandlers() {
 
   // Folder Scanning
   ipcMain.handle('fs:scanFolder', async (_, folderPath) => {
-    if (!folderPath || !fs.existsSync(folderPath)) return [];
-
-    const audioFiles = [];
-    const queue = [folderPath];
-
-    while (queue.length > 0) {
-      const currentDir = queue.shift();
-      try {
-        const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(currentDir, entry.name);
-          if (entry.isDirectory()) {
-            // Skip hidden directories
-            if (!entry.name.startsWith('.')) {
-              queue.push(fullPath);
-            }
-          } else if (entry.isFile()) {
-            const ext = path.extname(entry.name).toLowerCase();
-            if (AUDIO_EXTENSIONS.has(ext)) {
-              audioFiles.push(fullPath);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`[Scanner] Error reading directory ${currentDir}:`, err.message);
-      }
+    if (!folderPath) return [];
+    try {
+      return await LibraryScanner.scanDirectory(folderPath, fs);
+    } catch (err) {
+      console.warn(`[Main] Error scanning folder ${folderPath}:`, err);
+      return [];
     }
-
-    return audioFiles;
   });
 
   // Metadata Parsing
@@ -165,7 +149,7 @@ function registerIpcHandlers() {
   ipcMain.handle('metadata:parseBatch', async (_, filePaths) => {
     if (!Array.isArray(filePaths)) return [];
     const parsedTracks = [];
-    const chunkSize = 8; // Process in chunks to avoid memory bottlenecks
+    const chunkSize = 16; // Process in chunks to maintain low memory pressure
 
     for (let i = 0; i < filePaths.length; i += chunkSize) {
       const chunk = filePaths.slice(i, i + chunkSize);
@@ -186,11 +170,11 @@ function registerIpcHandlers() {
           }
         })
       );
+      // Persist each chunk incrementally to prevent data loss on massive imports
+      storage.upsertTracksBatch(results);
       parsedTracks.push(...results);
     }
 
-    // Persist parsed tracks in DB
-    storage.upsertTracksBatch(parsedTracks);
     return parsedTracks;
   });
 
@@ -207,6 +191,7 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getTracks', () => storage.getAllTracks());
   ipcMain.handle('db:getTopTracks', (_, limit) => storage.getTopTracks(limit));
   ipcMain.handle('db:getRecentTracks', (_, limit) => storage.getRecentTracks(limit));
+  ipcMain.handle('db:getTopArtistsByTrackCount', (_, limit) => storage.getTopArtistsByTrackCount(limit));
   ipcMain.handle('db:upsertTrack', (_, track) => storage.upsertTrack(track));
   ipcMain.handle('db:upsertTracksBatch', (_, tracks) => storage.upsertTracksBatch(tracks));
   ipcMain.handle('db:incrementPlayCount', (_, filePath) => storage.incrementPlayCount(filePath));

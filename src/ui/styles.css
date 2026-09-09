@@ -2359,21 +2359,54 @@ body.has-custom-bg .split-card {
 }
 
 /* Circular Artist Cards */
+.card-vertical-item.artist-item {
+  background-color: #181818;
+  border-radius: 8px;
+  padding: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.card-vertical-item.artist-item:hover {
+  background-color: #282828;
+}
+
 .card-vertical-item.artist-item .card-item-cover-wrap {
-  border-radius: 9999px;
+  border-radius: 50%;
   overflow: hidden;
   aspect-ratio: 1 / 1;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  margin-bottom: 10px;
 }
 
 .card-vertical-item.artist-item .card-item-cover-img,
 .card-vertical-item.artist-item .card-item-cover-fallback {
-  border-radius: 9999px;
+  border-radius: 50%;
   aspect-ratio: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.card-vertical-item.artist-item .card-item-title,
+.card-vertical-item.artist-item .card-item-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+  margin-bottom: 3px;
+}
+
 .card-vertical-item.artist-item .card-item-subtitle {
   text-align: center;
+  font-size: 12px;
+  color: #a7a7a7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Top Tracks Rank Badge */

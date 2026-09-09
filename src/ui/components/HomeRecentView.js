@@ -77,10 +77,10 @@ class HomeRecentView {
           </div>
         </div>
 
-        <!-- Section 2: Artistas Populares (Circular Avatar Carousel) -->
+        <!-- Section 2: Artistas em Destaque (Circular Avatar Carousel) -->
         <div class="home-section-container" id="section-artists">
           <div class="home-section-header">
-            <h2 class="home-section-title">Artistas Populares</h2>
+            <h2 class="home-section-title">Artistas em Destaque</h2>
           </div>
           <div class="horizontal-carousel-row" id="artists-carousel">
             <!-- Circular artist cards rendered here -->
@@ -412,11 +412,12 @@ class HomeRecentView {
     const artistMap = new Map();
     this.tracks.forEach(t => {
       const name = (t.artist || '').trim();
-      if (!name || name.toLowerCase() === 'artista desconhecido') return;
-      if (!artistMap.has(name)) {
-        artistMap.set(name, { name, tracks: [], coverDataUrl: t.coverDataUrl });
+      if (!name || name.toLowerCase() === 'artista desconhecido' || name.toLowerCase() === 'unknown artist' || name.toLowerCase() === 'unknown') return;
+      const key = name.toLowerCase();
+      if (!artistMap.has(key)) {
+        artistMap.set(key, { name, tracks: [], coverDataUrl: t.coverDataUrl });
       }
-      const entry = artistMap.get(name);
+      const entry = artistMap.get(key);
       entry.tracks.push(t);
       if (!entry.coverDataUrl && t.coverDataUrl) {
         entry.coverDataUrl = t.coverDataUrl;
@@ -424,7 +425,11 @@ class HomeRecentView {
     });
 
     const artists = Array.from(artistMap.values())
-      .sort((a, b) => b.tracks.length - a.tracks.length)
+      .map(entry => ({
+        ...entry,
+        trackCount: entry.tracks.length
+      }))
+      .sort((a, b) => b.trackCount - a.trackCount)
       .slice(0, 10);
 
     if (artists.length === 0) {
@@ -441,8 +446,10 @@ class HomeRecentView {
              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
            </div>`;
 
+      const countLabel = `${art.trackCount} música${art.trackCount === 1 ? '' : 's'}`;
+
       html += `
-        <div class="card-vertical-item artist-item" data-index="${idx}" title="${this._escapeHtml(art.name)}">
+        <div class="card-vertical-item artist-item" data-index="${idx}" title="${this._escapeHtml(art.name)} (${countLabel})">
           <div class="card-item-cover-wrap">
             ${avatar}
             <button class="card-item-play-btn" title="Tocar ${this._escapeHtml(art.name)}">
@@ -450,7 +457,7 @@ class HomeRecentView {
             </button>
           </div>
           <h4 class="card-item-title">${this._escapeHtml(art.name)}</h4>
-          <span class="card-item-subtitle">Artista</span>
+          <span class="card-item-subtitle">${countLabel}</span>
         </div>
       `;
     });

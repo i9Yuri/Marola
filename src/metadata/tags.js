@@ -107,8 +107,32 @@ async function parseAudioMetadata(filePath) {
   const common = metadata?.common || {};
   const format = metadata?.format || {};
 
-  const title = common.title?.trim() || baseName;
-  const artist = common.artist?.trim() || (common.artists && common.artists.join(', ')) || 'Artista Desconhecido';
+  // Infer artist and title from filename when formatted as "Artist - Title"
+  let inferredArtist = null;
+  let inferredTitle = null;
+  if (baseName.includes(' - ')) {
+    const parts = baseName.split(' - ');
+    if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
+      inferredArtist = parts[0].trim();
+      inferredTitle = parts.slice(1).join(' - ').trim();
+    }
+  }
+
+  const rawArtist = common.artist?.trim() || (common.artists && common.artists.join(', ')) || '';
+  const isArtistUnknown = !rawArtist ||
+    rawArtist.toLowerCase() === 'unknown' ||
+    rawArtist.toLowerCase() === 'unknown artist' ||
+    rawArtist.toLowerCase() === 'artista desconhecido';
+
+  const artist = isArtistUnknown && inferredArtist ? inferredArtist : (rawArtist || 'Artista Desconhecido');
+
+  const rawTitle = common.title?.trim() || '';
+  const isTitleUnknown = !rawTitle ||
+    rawTitle.toLowerCase() === 'unknown' ||
+    rawTitle.toLowerCase() === 'sem título' ||
+    rawTitle === baseName;
+
+  const title = (isTitleUnknown && inferredTitle) ? inferredTitle : (rawTitle || baseName);
   const album = common.album?.trim() || 'Álbum Desconhecido';
   const duration = typeof format.duration === 'number' && !isNaN(format.duration) ? format.duration : 0;
 

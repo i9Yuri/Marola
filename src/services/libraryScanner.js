@@ -2,10 +2,11 @@
  * LibraryScanner: File scanning, path containment, and active-folder filtering.
  */
 class LibraryScanner {
-  static AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a']);
+  static AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac']);
 
   /**
    * Recursively scans a directory for supported audio files.
+   * Traverses all nested subdirectories (e.g. "FLAC SONGS", "Gramado à noite vibes").
    * @param {string} folderPath
    * @param {Object} [fsOverride] Optional fs module for testing or dependency injection
    * @returns {Promise<string[]>} List of absolute file paths
@@ -44,22 +45,33 @@ class LibraryScanner {
 
     const audioFiles = [];
     const queue = [folderPath];
+    const visited = new Set();
 
     while (queue.length > 0) {
       const currentDir = queue.shift();
+      if (visited.has(currentDir)) continue;
+      visited.add(currentDir);
+
       try {
         const readdir = fsModule.promises?.readdir || ((dir, opts) => Promise.resolve(fsModule.readdirSync(dir, opts)));
         const entries = await readdir(currentDir, { withFileTypes: true });
 
         for (const entry of entries) {
-          const isDir = typeof entry.isDirectory === 'function' ? entry.isDirectory() : false;
-          const isFile = typeof entry.isFile === 'function' ? entry.isFile() : false;
           const name = entry.name || (typeof entry === 'string' ? entry : '');
-
-          // Skip hidden files and directories
-          if (name.startsWith('.')) continue;
+          if (!name || name.startsWith('.')) continue; // Skip hidden files and directories
 
           const fullPath = pathModule.join(currentDir, name);
+          let isDir = typeof entry.isDirectory === 'function' ? entry.isDirectory() : false;
+          let isFile = typeof entry.isFile === 'function' ? entry.isFile() : false;
+
+          // If entry is a symlink or string, resolve via stat
+          if ((typeof entry.isSymbolicLink === 'function' && entry.isSymbolicLink()) || typeof entry === 'string') {
+            try {
+              const stat = await (fsModule.promises?.stat ? fsModule.promises.stat(fullPath) : Promise.resolve(fsModule.statSync(fullPath)));
+              isDir = stat.isDirectory();
+              isFile = stat.isFile();
+            } catch {}
+          }
 
           if (isDir) {
             queue.push(fullPath);

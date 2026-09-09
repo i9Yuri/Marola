@@ -216,6 +216,43 @@ class StorageManager {
     return { totalPlays, trackCount };
   }
 
+  /**
+   * Aggregates and ranks artists by total indexed track count.
+   * @param {number} [limit=10]
+   * @param {Object} [options={ activeOnly: true }]
+   * @returns {Array<{ name: string, trackCount: number, coverDataUrl: string|null, tracks: Array<Object> }>}
+   */
+  getTopArtistsByTrackCount(limit = 10, options = { activeOnly: true }) {
+    const allTracks = this.getAllTracks(options);
+    const artistMap = new Map();
+
+    for (const track of allTracks) {
+      const name = (track.artist || '').trim();
+      if (!name || name.toLowerCase() === 'artista desconhecido' || name.toLowerCase() === 'unknown artist' || name.toLowerCase() === 'unknown') {
+        continue;
+      }
+      const key = name.toLowerCase();
+      if (!artistMap.has(key)) {
+        artistMap.set(key, {
+          name,
+          trackCount: 0,
+          coverDataUrl: null,
+          tracks: []
+        });
+      }
+      const entry = artistMap.get(key);
+      entry.trackCount++;
+      entry.tracks.push(track);
+      if (!entry.coverDataUrl && track.coverDataUrl) {
+        entry.coverDataUrl = track.coverDataUrl;
+      }
+    }
+
+    return Array.from(artistMap.values())
+      .sort((a, b) => b.trackCount - a.trackCount)
+      .slice(0, limit);
+  }
+
   // --- Playlist CRUD & Ordering ---
 
   createPlaylist(name) {
