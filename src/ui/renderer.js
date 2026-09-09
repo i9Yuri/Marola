@@ -21,6 +21,13 @@ async function initApp() {
     currentView: 'recent',
     views: {},
     favoritesSet: new Set(),
+    tracks: [],
+
+    setTracks(list) {
+      if (Array.isArray(list)) {
+        this.tracks = list;
+      }
+    },
 
     isFavorite(filePath) {
       return this.favoritesSet.has(filePath);
@@ -28,6 +35,24 @@ async function initApp() {
 
     syncFavorites(favsList) {
       this.favoritesSet = new Set(Array.isArray(favsList) ? favsList : []);
+    },
+
+    async toggleFavorite(filePath) {
+      if (!filePath) return false;
+      const isFav = this.isFavorite(filePath);
+      if (isFav) {
+        await window.api?.removeFavorite(filePath);
+        this.favoritesSet.delete(filePath);
+      } else {
+        await window.api?.addFavorite(filePath);
+        this.favoritesSet.add(filePath);
+      }
+      this.views.playerBar?.updateFavoriteState();
+      this.views.sidebarRight?.updateFavoriteState();
+      if (typeof updateAllTrackLists === 'function') {
+        updateAllTrackLists();
+      }
+      return !isFav;
     },
 
     switchView(target) {
@@ -79,7 +104,16 @@ async function initApp() {
       }
       this.switchView('search');
       if (this.views.search) {
-        await this.views.search.setQuery(query);
+        if (!this.tracks || this.tracks.length === 0) {
+          if (this.views.allTracks?.tracks?.length > 0) {
+            this.tracks = this.views.allTracks.tracks;
+          } else if (this.views.recent?.tracks?.length > 0) {
+            this.tracks = this.views.recent.tracks;
+          } else if (typeof window !== 'undefined' && window.api?.getTracks) {
+            this.tracks = await window.api.getTracks();
+          }
+        }
+        await this.views.search.setQuery(query, this.tracks);
       }
     },
 
@@ -422,6 +456,17 @@ async function initApp() {
           app.switchView('recent');
         }
       },
+      onSubmitSearch: (term) => {
+        if (term && term.trim()) {
+          if (app.currentView !== 'search') {
+            app.openSearch(term).then(() => {
+              searchView?.playFirstResult();
+            });
+          } else {
+            searchView?.playFirstResult();
+          }
+        }
+      },
       onHomeClick: () => {
         app.switchView('recent');
         topHeader?.setSearchValue('');
@@ -609,6 +654,40 @@ async function initApp() {
   queueManager.on('modeChanged', ({ repeatMode, shuffle }) => {
     window.api?.updateSettings({ repeatMode, shuffle });
   });
+
+  // Global Keyboard Shortcuts (Spacebar Play/Pause toggle with text-editing immunity)
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        const active = document.activeElement;
+        const isEditable = active && (
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable ||
+          active.getAttribute('contenteditable') === 'true'
+        );
+        if (!isEditable) {
+          e.preventDefault();
+          audioEngine.togglePlayPause();
+        }
+      }
+    });
+  }
+
+  // Preload tracks in memory for instant zero-lag search and navigation
+  try {
+    if (typeof window !== 'undefined' && window.api?.getTracks) {
+      window.api.getTracks().then(tracks => {
+        if (Array.isArray(tracks)) {
+          app.setTracks(tracks);
+        }
+      }).catch(err => {
+        console.warn('[Renderer] Failed to preload tracks in background:', err);
+      });
+    }
+  } catch (err) {
+    console.warn('[Renderer] Error initializing track preloader:', err);
+  }
 
   console.log('[JustPlay] App initialized successfully.');
 }

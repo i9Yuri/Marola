@@ -9,6 +9,12 @@ const _PlaylistCoverServiceDetail = typeof PlaylistCoverService !== 'undefined'
   ? PlaylistCoverService
   : (typeof require !== 'undefined' ? require('../../services/playlistCoverService') : null);
 
+const _TrackItemDetail = typeof TrackSwipeController !== 'undefined' && typeof renderSwipeRevealLayer !== 'undefined'
+  ? { TrackSwipeController, renderSwipeRevealLayer }
+  : (typeof require !== 'undefined' ? require('./TrackItem') : {});
+const TrackSwipeControllerRef = _TrackItemDetail.TrackSwipeController || (typeof TrackSwipeController !== 'undefined' ? TrackSwipeController : null);
+const renderSwipeRevealLayerRef = _TrackItemDetail.renderSwipeRevealLayer || (typeof renderSwipeRevealLayer !== 'undefined' ? renderSwipeRevealLayer : () => '');
+
 class PlaylistDetailView {
   constructor(appContext) {
     this.app = appContext;
@@ -18,6 +24,11 @@ class PlaylistDetailView {
     this.sortedTracks = [];
     this.sortBy = 'default'; // 'default' | 'recent' | 'title' | 'artist' | 'album' | 'duration'
     this.userName = 'Yuri';
+    this.ROW_HEIGHT = 56;
+    this.OVERSCAN = 8;
+    this.virtualStartIndex = 0;
+    this.virtualEndIndex = 0;
+    this._scrollRaf = null;
   }
 
   mount(containerElement) {
@@ -299,7 +310,7 @@ class PlaylistDetailView {
     `;
   }
 
-  _renderTableRows() {
+  _renderTableContainer() {
     if (this.sortedTracks.length === 0) {
       return `
         <div class="playlist-empty-table-state">
@@ -314,89 +325,145 @@ class PlaylistDetailView {
       `;
     }
 
+    const totalHeight = this.sortedTracks.length * this.ROW_HEIGHT;
+    this.virtualStartIndex = 0;
+    this.virtualEndIndex = Math.min(this.sortedTracks.length, 30);
+    const offsetY = 0;
+
+    return `
+      <div class="spotify-table-phantom" id="spotify-table-phantom" style="height: ${totalHeight}px; position: relative; width: 100%;">
+        <div class="spotify-table-window" id="spotify-table-window" style="position: absolute; top: 0; left: 0; right: 0; transform: translateY(${offsetY}px); will-change: transform;">
+          ${this._renderRowsSlice(this.virtualStartIndex, this.virtualEndIndex)}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderTableRows() {
+    return this._renderTableContainer();
+  }
+
+  _renderRowsSlice(startIndex, endIndex) {
     const currentTrack = this.app.queueManager?.getCurrentTrack();
     const isPlaying = Boolean(this.app.audioEngine?.isPlaying);
+    const slice = this.sortedTracks.slice(startIndex, endIndex);
 
-    return this.sortedTracks.map((track, idx) => {
+    return slice.map((track, i) => {
+      const realIdx = startIndex + i;
       const isCurrent = Boolean(currentTrack && currentTrack.filePath === track.filePath);
       const isFav = this.app.isFavorite ? this.app.isFavorite(track.filePath) : false;
       const durationStr = this._formatTrackDuration(track.duration);
       const dateAddedStr = this._formatDateAdded(track.added_at);
 
       const coverImg = track.coverDataUrl
-        ? `<img src="${track.coverDataUrl}" alt="Capa" class="track-thumb-img" loading="lazy">`
+        ? `<img src="${track.coverDataUrl}" alt="Capa" class="track-thumb-img" loading="lazy" decoding="async">`
         : `<div class="track-thumb-fallback"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>`;
 
       return `
-        <div class="spotify-track-row ${isCurrent ? 'playing' : ''} ${isCurrent && !isPlaying ? 'paused' : ''}" data-index="${idx}" data-filepath="${this._escapeHtml(track.filePath)}">
-          <!-- Col 1: Index / Play Button -->
-          <div class="col-cell col-idx">
-            <span class="row-num-text ${isCurrent ? 'active-green' : ''}">${idx + 1}</span>
-            <button class="row-play-trigger" title="Tocar ${this._escapeHtml(track.title || '')}" data-index="${idx}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 4 20 12 6 20 6 4"></polygon>
-              </svg>
-            </button>
-            ${isCurrent ? `
-              <div class="row-eq-bars">
-                <span class="eq-bar"></span>
-                <span class="eq-bar"></span>
-                <span class="eq-bar"></span>
-                <span class="eq-bar"></span>
+        <div class="track-virtual-item" data-index="${realIdx}">
+          ${renderSwipeRevealLayerRef()}
+          <div class="spotify-track-row ${isCurrent ? 'playing' : ''} ${isCurrent && !isPlaying ? 'paused' : ''}" data-index="${realIdx}" data-filepath="${this._escapeHtml(track.filePath)}">
+            <!-- Col 1: Index / Play Button -->
+            <div class="col-cell col-idx">
+              <span class="row-num-text ${isCurrent ? 'active-green' : ''}">${realIdx + 1}</span>
+              <button class="row-play-trigger" title="Tocar ${this._escapeHtml(track.title || '')}" data-index="${realIdx}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                </svg>
+              </button>
+              ${isCurrent ? `
+                <div class="row-eq-bars">
+                  <span class="eq-bar"></span>
+                  <span class="eq-bar"></span>
+                  <span class="eq-bar"></span>
+                  <span class="eq-bar"></span>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Col 2: Title & Artist with Thumbnail -->
+            <div class="col-cell col-title-cell">
+              <div class="track-thumb-container">
+                ${coverImg}
               </div>
-            ` : ''}
-          </div>
-
-          <!-- Col 2: Title & Artist with Thumbnail -->
-          <div class="col-cell col-title-cell">
-            <div class="track-thumb-container">
-              ${coverImg}
+              <div class="track-text-meta">
+                <span class="track-primary-title ${isCurrent ? 'active-green' : ''}" title="${this._escapeHtml(track.title || '')}">
+                  ${this._escapeHtml(track.title || 'Sem título')}
+                </span>
+                <span class="track-secondary-artist" title="${this._escapeHtml(track.artist || '')}">
+                  ${this._escapeHtml(track.artist || 'Artista desconhecido')}
+                </span>
+              </div>
             </div>
-            <div class="track-text-meta">
-              <span class="track-primary-title ${isCurrent ? 'active-green' : ''}" title="${this._escapeHtml(track.title || '')}">
-                ${this._escapeHtml(track.title || 'Sem título')}
-              </span>
-              <span class="track-secondary-artist" title="${this._escapeHtml(track.artist || '')}">
-                ${this._escapeHtml(track.artist || 'Artista desconhecido')}
-              </span>
+
+            <!-- Col 3: Album -->
+            <div class="col-cell col-album-cell" title="${this._escapeHtml(track.album || '')}">
+              <span>${this._escapeHtml(track.album || '—')}</span>
             </div>
-          </div>
 
-          <!-- Col 3: Album -->
-          <div class="col-cell col-album-cell" title="${this._escapeHtml(track.album || '')}">
-            <span>${this._escapeHtml(track.album || '—')}</span>
-          </div>
+            <!-- Col 4: Date Added -->
+            <div class="col-cell col-date-cell">
+              <span>${dateAddedStr}</span>
+            </div>
 
-          <!-- Col 4: Date Added -->
-          <div class="col-cell col-date-cell">
-            <span>${dateAddedStr}</span>
-          </div>
-
-          <!-- Col 5: Duration & Inline Actions -->
-          <div class="col-cell col-duration-cell">
-            <button class="btn-row-fav ${isFav ? 'active' : ''}" title="${isFav ? 'Remover dos favoritos' : 'Favoritar'}" data-filepath="${this._escapeHtml(track.filePath)}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="${isFav ? 'var(--accent)' : 'none'}" stroke="currentColor" stroke-width="2">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            </button>
-            <span class="row-duration-text">${durationStr}</span>
-            <button class="btn-row-more" title="Mais opções" data-index="${idx}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="2"></circle>
-                <circle cx="19" cy="12" r="2"></circle>
-                <circle cx="5" cy="12" r="2"></circle>
-              </svg>
-            </button>
+            <!-- Col 5: Duration & Spotify Checkmark Badge -->
+            <div class="col-cell col-duration-cell">
+              <button class="btn-row-fav spotify-badge-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Salvo em Músicas Curtidas' : 'Salvar em Músicas Curtidas'}" data-filepath="${this._escapeHtml(track.filePath)}">
+                ${isFav ? `
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                ` : `
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>
+                `}
+              </button>
+              <span class="row-duration-text">${durationStr}</span>
+              <button class="btn-row-more" title="Mais opções" data-index="${realIdx}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="19" cy="12" r="2"></circle>
+                  <circle cx="5" cy="12" r="2"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
     }).join('');
   }
 
+  _onScrollVirtual() {
+    const scrollContainer = this.container?.querySelector ? this.container.querySelector('.playlist-detail-scrollable') : null;
+    const tableBody = this.container?.querySelector ? this.container.querySelector('#playlist-table-rows') : null;
+    const windowEl = this.container?.querySelector ? this.container.querySelector('#spotify-table-window') : null;
+    if (!scrollContainer || !tableBody || !windowEl || this.sortedTracks.length === 0) return;
+
+    const tableOffsetTop = tableBody.offsetTop || 0;
+    const scrollTop = Math.max(0, scrollContainer.scrollTop - tableOffsetTop);
+    const viewportHeight = scrollContainer.clientHeight || 800;
+
+    const startIndex = Math.max(0, Math.floor(scrollTop / this.ROW_HEIGHT) - this.OVERSCAN);
+    const endIndex = Math.min(this.sortedTracks.length, Math.ceil((scrollTop + viewportHeight) / this.ROW_HEIGHT) + this.OVERSCAN);
+
+    if (startIndex !== this.virtualStartIndex || endIndex !== this.virtualEndIndex) {
+      this.virtualStartIndex = startIndex;
+      this.virtualEndIndex = endIndex;
+      const offsetY = startIndex * this.ROW_HEIGHT;
+      windowEl.style.transform = `translateY(${offsetY}px)`;
+      windowEl.innerHTML = this._renderRowsSlice(startIndex, endIndex);
+    }
+  }
+
   _bindEvents() {
-    const btnPlayMain = this.container.querySelector('#btn-playlist-play-main');
-    const btnShuffle = this.container.querySelector('#btn-playlist-shuffle');
-    const sortSelect = this.container.querySelector('#playlist-sort-select-detail');
+    const btnPlayMain = this.container?.querySelector ? this.container.querySelector('#btn-playlist-play-main') : null;
+    const btnShuffle = this.container?.querySelector ? this.container.querySelector('#btn-playlist-shuffle') : null;
+    const sortSelect = this.container?.querySelector ? this.container.querySelector('#playlist-sort-select-detail') : null;
+    const scrollContainer = this.container?.querySelector ? this.container.querySelector('.playlist-detail-scrollable') : null;
+    const rowsContainer = this.container?.querySelector ? this.container.querySelector('#playlist-table-rows') : null;
+
+    // Attach passive scroll listener for 60fps windowing
+    scrollContainer?.addEventListener('scroll', () => {
+      if (this._scrollRaf) cancelAnimationFrame(this._scrollRaf);
+      this._scrollRaf = requestAnimationFrame(() => this._onScrollVirtual());
+    }, { passive: true });
 
     // Big play button: toggle play/pause for this playlist
     btnPlayMain?.addEventListener('click', (e) => {
@@ -426,66 +493,139 @@ class PlaylistDetailView {
     sortSelect?.addEventListener('change', (e) => {
       this.sortBy = e.target.value;
       this._applySort();
-      const rowsEl = this.container.querySelector('#playlist-table-rows');
+      const rowsEl = this.container?.querySelector ? this.container.querySelector('#playlist-table-rows') : null;
       if (rowsEl) {
-        rowsEl.innerHTML = this._renderTableRows();
-        this._bindRowEvents();
+        rowsEl.innerHTML = this._renderTableContainer();
+        this._onScrollVirtual();
       }
     });
 
-    this._bindRowEvents();
+    if (rowsContainer) {
+      this._bindTableDelegation(rowsContainer);
+    }
+  }
+
+  _bindTableDelegation(rowsContainer) {
+    if (!rowsContainer) return;
+
+    // 1. Delegated Double-Click: play track
+    rowsContainer.addEventListener('dblclick', (e) => {
+      const row = e.target.closest('.spotify-track-row');
+      if (!row || row._justSwiped) return;
+      const idx = parseInt(row.dataset.index, 10);
+      const track = this.sortedTracks[idx];
+      if (track) {
+        this.app.playTrackDirectly(track, this.sortedTracks, idx);
+      }
+    });
+
+    // 2. Delegated Click: triggers, favorites, menus
+    rowsContainer.addEventListener('click', async (e) => {
+      const row = e.target.closest('.spotify-track-row');
+      if (row && row._justSwiped) return;
+
+      // Click on row play trigger button
+      const playBtn = e.target.closest('.row-play-trigger');
+      if (playBtn) {
+        e.stopPropagation();
+        const idx = parseInt(playBtn.dataset.index, 10);
+        const track = this.sortedTracks[idx];
+        if (track) {
+          this.app.playTrackDirectly(track, this.sortedTracks, idx);
+        }
+        return;
+      }
+
+      // Click on favorite button
+      const favBtn = e.target.closest('.btn-row-fav');
+      if (favBtn) {
+        e.stopPropagation();
+        const row = favBtn.closest('.spotify-track-row');
+        const idx = parseInt(row?.dataset.index, 10);
+        const track = this.sortedTracks[idx];
+        if (track) {
+          await this._handleToggleFavorite(favBtn, track);
+        }
+        return;
+      }
+
+      // Click on more options menu
+      const moreBtn = e.target.closest('.btn-row-more');
+      if (moreBtn) {
+        e.stopPropagation();
+        const idx = parseInt(moreBtn.dataset.index, 10);
+        const track = this.sortedTracks[idx];
+        if (track) {
+          this._openContextMenu(track, e.clientX, e.clientY);
+        }
+        return;
+      }
+    });
+
+    // 3. Swipe-to-action gesture controller
+    if (this._swipeController) {
+      this._swipeController.detach();
+      this._swipeController = null;
+    }
+    if (TrackSwipeControllerRef) {
+      this._swipeController = new TrackSwipeControllerRef({
+        container: rowsContainer,
+        getTrackByIndex: (idx) => this.sortedTracks[idx],
+        onPlayNext: (track) => {
+          if (typeof this.app.queueManager?.addTrackPlayNext === 'function') {
+            this.app.queueManager.addTrackPlayNext(track);
+          } else {
+            this.app.queueManager?.addTrack(track);
+          }
+          this.app.showToast(`Tocar a seguir: ${track.title || 'Faixa'}`);
+        }
+      });
+    }
+  }
+
+  async _handleToggleFavorite(favBtn, track) {
+    if (this.app.toggleFavorite) {
+      const isNowFav = await this.app.toggleFavorite(track.filePath);
+      favBtn.classList.toggle('active', isNowFav);
+      favBtn.title = isNowFav ? 'Salvo em Músicas Curtidas' : 'Salvar em Músicas Curtidas';
+      favBtn.innerHTML = isNowFav
+        ? `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
+      if (this.playlist?.isLikedSongs && !isNowFav) {
+        this.tracks = this.tracks.filter(t => t.filePath !== track.filePath);
+        this._applySort();
+        const rowsEl = this.container?.querySelector ? this.container.querySelector('#playlist-table-rows') : null;
+        if (rowsEl) {
+          rowsEl.innerHTML = this._renderTableContainer();
+          this._onScrollVirtual();
+        }
+      }
+    } else if (typeof window !== 'undefined' && window.api?.toggleFavorite) {
+      const res = await window.api.toggleFavorite(track.filePath);
+      if (this.app.syncFavorites) {
+        this.app.syncFavorites(res.favorites);
+      }
+      favBtn.classList.toggle('active', res.isFavorite);
+      favBtn.title = res.isFavorite ? 'Salvo em Músicas Curtidas' : 'Salvar em Músicas Curtidas';
+      favBtn.innerHTML = res.isFavorite
+        ? `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
+      if (this.playlist?.isLikedSongs && !res.isFavorite) {
+        this.tracks = this.tracks.filter(t => t.filePath !== track.filePath);
+        this._applySort();
+        const rowsEl = this.container?.querySelector ? this.container.querySelector('#playlist-table-rows') : null;
+        if (rowsEl) {
+          rowsEl.innerHTML = this._renderTableContainer();
+          this._onScrollVirtual();
+        }
+      }
+    }
   }
 
   _bindRowEvents() {
-    const rows = this.container.querySelectorAll('.spotify-track-row');
-    rows.forEach(row => {
-      const idx = parseInt(row.dataset.index, 10);
-      const track = this.sortedTracks[idx];
-      if (!track) return;
-
-      // Double click or single click to play
-      row.addEventListener('dblclick', () => {
-        this.app.playTrackDirectly(track, this.sortedTracks, idx);
-      });
-
-      // Play button hover trigger
-      const playBtn = row.querySelector('.row-play-trigger');
-      playBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.app.playTrackDirectly(track, this.sortedTracks, idx);
-      });
-
-      // Favorite toggle
-      const favBtn = row.querySelector('.btn-row-fav');
-      favBtn?.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (typeof window !== 'undefined' && window.api?.toggleFavorite) {
-          const res = await window.api.toggleFavorite(track.filePath);
-          if (this.app.syncFavorites) {
-            this.app.syncFavorites(res.favorites);
-          }
-          favBtn.classList.toggle('active', res.isFavorite);
-          const svg = favBtn.querySelector('svg');
-          if (svg) svg.setAttribute('fill', res.isFavorite ? 'var(--accent)' : 'none');
-
-          // If in liked songs view, reload on un-favorite
-          if (this.playlist?.isLikedSongs && !res.isFavorite) {
-            this.tracks = this.tracks.filter(t => t.filePath !== track.filePath);
-            this._applySort();
-            const rowsEl = this.container.querySelector('#playlist-table-rows');
-            if (rowsEl) rowsEl.innerHTML = this._renderTableRows();
-            this._bindRowEvents();
-          }
-        }
-      });
-
-      // More actions menu
-      const moreBtn = row.querySelector('.btn-row-more');
-      moreBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this._openContextMenu(track, e.clientX, e.clientY);
-      });
-    });
+    // Retained for backwards-compatibility; events are handled by _bindTableDelegation
   }
 
   _openContextMenu(track, x, y) {

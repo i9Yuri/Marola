@@ -3,6 +3,12 @@
  * Solves main-thread freezing by windowing/virtual-scrolling rows (only ~30 DOM nodes
  * rendered at any given time out of 800+ tracks), with 60 FPS scrolling and instant sorting.
  */
+const _TrackItemModuleAT = typeof TrackSwipeController !== 'undefined' && typeof renderSwipeRevealLayer !== 'undefined'
+  ? { TrackSwipeController, renderSwipeRevealLayer }
+  : (typeof require !== 'undefined' ? require('./TrackItem') : {});
+const TrackSwipeControllerAT = _TrackItemModuleAT.TrackSwipeController || (typeof TrackSwipeController !== 'undefined' ? TrackSwipeController : null);
+const renderSwipeRevealLayerAT = _TrackItemModuleAT.renderSwipeRevealLayer || (typeof renderSwipeRevealLayer !== 'undefined' ? renderSwipeRevealLayer : () => '');
+
 class AllTracksView {
   constructor(appContext) {
     this.app = appContext;
@@ -214,6 +220,7 @@ class AllTracksView {
     if (scrollBody) {
       scrollBody.removeEventListener('scroll', this._onScroll);
       scrollBody.addEventListener('scroll', this._onScroll, { passive: true });
+      this._bindTableDelegation(scrollBody);
     }
 
     window.removeEventListener('resize', this._onResize);
@@ -309,6 +316,82 @@ class AllTracksView {
     });
   }
 
+  _bindTableDelegation(scrollBody) {
+    if (!scrollBody) return;
+
+    // 1. Delegated Double-Click: play track
+    scrollBody.addEventListener('dblclick', (e) => {
+      const row = e.target.closest('.at-row');
+      if (!row || row._justSwiped) return;
+      const idx = parseInt(row.dataset.index, 10);
+      const track = this.displayTracks[idx];
+      if (track) {
+        this.app.playTrackDirectly(track, this.displayTracks, idx);
+      }
+    });
+
+    // 2. Delegated Click: play trigger, favorite toggle, more menu
+    scrollBody.addEventListener('click', async (e) => {
+      const row = e.target.closest('.at-row');
+      if (row && row._justSwiped) return;
+
+      const playBtn = e.target.closest('.at-play-btn');
+      if (playBtn) {
+        e.stopPropagation();
+        const idx = parseInt(playBtn.dataset.index, 10);
+        const track = this.displayTracks[idx];
+        if (track) {
+          this.app.playTrackDirectly(track, this.displayTracks, idx);
+        }
+        return;
+      }
+
+      const likeBtn = e.target.closest('.at-btn-like');
+      if (likeBtn) {
+        e.stopPropagation();
+        const rowEl = likeBtn.closest('.at-row');
+        const idx = parseInt(rowEl?.dataset.index, 10);
+        const track = this.displayTracks[idx];
+        if (track && this.app.toggleFavorite) {
+          await this.app.toggleFavorite(track.filePath);
+          this._renderVirtualList();
+        }
+        return;
+      }
+
+      const moreBtn = e.target.closest('.at-btn-more');
+      if (moreBtn) {
+        e.stopPropagation();
+        const idx = parseInt(moreBtn.dataset.index, 10);
+        const track = this.displayTracks[idx];
+        if (track && this.app.showContextMenu) {
+          this.app.showContextMenu(e, track);
+        }
+        return;
+      }
+    });
+
+    // 3. Swipe-to-action gesture controller
+    if (this._swipeController) {
+      this._swipeController.detach();
+      this._swipeController = null;
+    }
+    if (TrackSwipeControllerAT) {
+      this._swipeController = new TrackSwipeControllerAT({
+        container: scrollBody,
+        getTrackByIndex: (idx) => this.displayTracks[idx],
+        onPlayNext: (track) => {
+          if (typeof this.app.queueManager?.addTrackPlayNext === 'function') {
+            this.app.queueManager.addTrackPlayNext(track);
+          } else {
+            this.app.queueManager?.addTrack(track);
+          }
+          this.app.showToast(`Tocar a seguir: ${track.title || 'Faixa'}`);
+        }
+      });
+    }
+  }
+
   _renderVirtualList() {
     const scrollBody = this.container?.querySelector('#all-tracks-scroll-body');
     const phantom = this.container?.querySelector('#at-virtual-phantom');
@@ -351,102 +434,69 @@ class AllTracksView {
       const durationStr = this._formatDuration(track.duration);
 
       const thumb = track.coverDataUrl
-        ? `<img src="${track.coverDataUrl}" alt="Capa" class="at-thumb-img" loading="lazy">`
+        ? `<img src="${track.coverDataUrl}" alt="Capa" class="at-thumb-img" loading="lazy" decoding="async">`
         : `<div class="at-thumb-fallback"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg></div>`;
 
       rowsHtml += `
-        <div class="at-row ${isCurrent ? 'playing' : ''} ${isCurrent && !isPlaying ? 'paused' : ''}" data-index="${i}" data-filepath="${this._escapeHtml(track.filePath)}">
-          <div class="at-col at-col-idx">
-            <span class="at-idx-text ${isCurrent ? 'active-green' : ''}">${i + 1}</span>
-            <button class="at-play-btn" data-index="${i}" title="Tocar ${this._escapeHtml(track.title || 'Música')}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 4 20 12 6 20 6 4"></polygon>
-              </svg>
-            </button>
-            ${isCurrent && isPlaying ? `
-              <div class="at-eq-bars">
-                <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
-              </div>
-            ` : ''}
-          </div>
-
-          <div class="at-col at-col-title">
-            <div class="at-thumb">${thumb}</div>
-            <div class="at-title-wrap">
-              <span class="at-track-name ${isCurrent ? 'active-green' : ''}" title="${this._escapeHtml(track.title || '')}">${this._escapeHtml(track.title || 'Sem título')}</span>
-              <span class="at-track-sub">${this._escapeHtml(track.artist || 'Artista Desconhecido')}</span>
+        <div class="track-virtual-item" data-index="${i}">
+          ${renderSwipeRevealLayerAT()}
+          <div class="at-row ${isCurrent ? 'playing' : ''} ${isCurrent && !isPlaying ? 'paused' : ''}" data-index="${i}" data-filepath="${this._escapeHtml(track.filePath)}">
+            <div class="at-col at-col-idx">
+              <span class="at-idx-text ${isCurrent ? 'active-green' : ''}">${i + 1}</span>
+              <button class="at-play-btn" data-index="${i}" title="Tocar ${this._escapeHtml(track.title || 'Música')}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                </svg>
+              </button>
+              ${isCurrent && isPlaying ? `
+                <div class="at-eq-bars">
+                  <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
+                </div>
+              ` : ''}
             </div>
-          </div>
 
-          <div class="at-col at-col-artist" title="${this._escapeHtml(track.artist || '')}">
-            <span class="at-text-truncate">${this._escapeHtml(track.artist || 'Artista Desconhecido')}</span>
-          </div>
+            <div class="at-col at-col-title">
+              <div class="at-thumb">${thumb}</div>
+              <div class="at-title-wrap">
+                <span class="at-track-name ${isCurrent ? 'active-green' : ''}" title="${this._escapeHtml(track.title || '')}">${this._escapeHtml(track.title || 'Sem título')}</span>
+                <span class="at-track-sub">${this._escapeHtml(track.artist || 'Artista Desconhecido')}</span>
+              </div>
+            </div>
 
-          <div class="at-col at-col-album" title="${this._escapeHtml(track.album || '')}">
-            <span class="at-text-truncate">${this._escapeHtml(track.album || 'Álbum Desconhecido')}</span>
-          </div>
+            <div class="at-col at-col-artist" title="${this._escapeHtml(track.artist || '')}">
+              <span class="at-text-truncate">${this._escapeHtml(track.artist || 'Artista Desconhecido')}</span>
+            </div>
 
-          <div class="at-col at-col-duration">
-            <span>${durationStr}</span>
-          </div>
+            <div class="at-col at-col-album" title="${this._escapeHtml(track.album || '')}">
+              <span class="at-text-truncate">${this._escapeHtml(track.album || 'Álbum Desconhecido')}</span>
+            </div>
 
-          <div class="at-col at-col-actions">
-            <button class="at-action-btn at-btn-like ${isFav ? 'active' : ''}" data-filepath="${this._escapeHtml(track.filePath)}" title="${isFav ? 'Descurtir' : 'Curtir'}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="${isFav ? '#1ed760' : 'none'}" stroke="${isFav ? '#1ed760' : 'currentColor'}" stroke-width="2">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            </button>
-            <button class="at-action-btn at-btn-more" data-index="${i}" title="Mais opções">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="2"></circle>
-                <circle cx="19" cy="12" r="2"></circle>
-                <circle cx="5" cy="12" r="2"></circle>
-              </svg>
-            </button>
+            <div class="at-col at-col-duration">
+              <span>${durationStr}</span>
+            </div>
+
+            <div class="at-col at-col-actions">
+              <button class="at-action-btn at-btn-like spotify-badge-btn ${isFav ? 'active' : ''}" data-filepath="${this._escapeHtml(track.filePath)}" title="${isFav ? 'Salvo em Músicas Curtidas' : 'Salvar em Músicas Curtidas'}">
+                ${isFav ? `
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                ` : `
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>
+                `}
+              </button>
+              <button class="at-action-btn at-btn-more" data-index="${i}" title="Mais opções">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="19" cy="12" r="2"></circle>
+                  <circle cx="5" cy="12" r="2"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
     }
 
     content.innerHTML = rowsHtml;
-
-    // Attach row events
-    content.querySelectorAll('.at-row').forEach(rowEl => {
-      const idx = parseInt(rowEl.dataset.index, 10);
-      const track = this.displayTracks[idx];
-      if (!track) return;
-
-      // Double-click row: play directly
-      rowEl.addEventListener('dblclick', () => {
-        this.app.playTrackDirectly(track, this.displayTracks, idx);
-      });
-
-      // Play button on row hover
-      const playBtn = rowEl.querySelector('.at-play-btn');
-      playBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.app.playTrackDirectly(track, this.displayTracks, idx);
-      });
-
-      // Like button
-      const likeBtn = rowEl.querySelector('.at-btn-like');
-      likeBtn?.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (this.app.toggleFavorite) {
-          await this.app.toggleFavorite(track.filePath);
-          this._renderVirtualList();
-        }
-      });
-
-      // More actions menu
-      const moreBtn = rowEl.querySelector('.at-btn-more');
-      moreBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this.app.showContextMenu) {
-          this.app.showContextMenu(e, track);
-        }
-      });
-    });
   }
 
   updatePlayingState() {

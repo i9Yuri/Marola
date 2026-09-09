@@ -60,10 +60,8 @@ class SidebarRight {
                 <h2 class="sr-track-title" id="sr-track-title">Nenhuma faixa tocando</h2>
                 <span class="sr-track-artist" id="sr-track-artist">JustPlay Offline</span>
               </div>
-              <button class="btn-icon sr-btn-fav" id="sr-btn-fav" title="Favoritar / Curtir">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
+              <button class="btn-icon sr-btn-fav spotify-badge-btn" id="sr-btn-fav" title="Salvar em Músicas Curtidas">
+                <svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>
               </button>
             </div>
           </div>
@@ -237,13 +235,14 @@ class SidebarRight {
   _updateFavoriteUi(isFav) {
     const btnFav = this.container?.querySelector('#sr-btn-fav');
     if (!btnFav) return;
-    const svg = btnFav.querySelector('svg');
     if (isFav) {
       btnFav.classList.add('active');
-      if (svg) svg.setAttribute('fill', 'var(--accent-color)');
+      btnFav.title = 'Salvo em Músicas Curtidas';
+      btnFav.innerHTML = `<svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
     } else {
       btnFav.classList.remove('active');
-      if (svg) svg.setAttribute('fill', 'none');
+      btnFav.title = 'Salvar em Músicas Curtidas';
+      btnFav.innerHTML = `<svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>`;
     }
   }
 

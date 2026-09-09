@@ -23,19 +23,43 @@ class SearchView {
   async setQuery(query, allTracks) {
     this.query = (query || '').trim();
 
-    if (Array.isArray(allTracks)) {
+    if (Array.isArray(allTracks) && allTracks.length > 0) {
       this.tracks = allTracks;
+    } else if (Array.isArray(this.app.tracks) && this.app.tracks.length > 0) {
+      this.tracks = this.app.tracks;
+    } else if (Array.isArray(this.app.views?.recent?.tracks) && this.app.views.recent.tracks.length > 0) {
+      this.tracks = this.app.views.recent.tracks;
+    } else if (Array.isArray(this.app.views?.allTracks?.tracks) && this.app.views.allTracks.tracks.length > 0) {
+      this.tracks = this.app.views.allTracks.tracks;
     } else if (typeof window !== 'undefined' && window.api?.getTracks) {
       try {
         this.tracks = await window.api.getTracks();
       } catch (e) {
         this.tracks = [];
       }
-    } else if (Array.isArray(this.app.views?.recent?.tracks)) {
-      this.tracks = this.app.views.recent.tracks;
     }
 
     this.render();
+  }
+
+  playFirstResult() {
+    if (!this.tracks || this.tracks.length === 0 || !this.query) return;
+
+    const normQuery = this.query
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+    const matchedTracks = this.tracks.filter(t => {
+      const title = (t.title || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const artist = (t.artist || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const album = (t.album || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return title.includes(normQuery) || artist.includes(normQuery) || album.includes(normQuery);
+    });
+
+    if (matchedTracks.length > 0) {
+      this.app.playTrackDirectly(matchedTracks[0], matchedTracks, 0);
+    }
   }
 
   render() {
@@ -200,10 +224,12 @@ class SearchView {
             </div>
           </div>
           <div class="search-track-right">
-            <button class="search-track-like-btn ${isFav ? 'active' : ''}" data-filepath="${this._escapeHtml(t.filePath)}" title="${isFav ? 'Descurtir' : 'Curtir'}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav ? '#1ed760' : 'none'}" stroke="${isFav ? '#1ed760' : 'currentColor'}" stroke-width="2">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
+            <button class="search-track-like-btn spotify-badge-btn ${isFav ? 'active' : ''}" data-filepath="${this._escapeHtml(t.filePath)}" title="${isFav ? 'Salvo em Músicas Curtidas' : 'Salvar em Músicas Curtidas'}">
+              ${isFav ? `
+                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+              ` : `
+                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>
+              `}
             </button>
             <span class="search-track-dur">${dur}</span>
           </div>

@@ -5,12 +5,17 @@
 class TopHeader {
   constructor(appContext, options = {}) {
     this.app = appContext;
+    this.debounceMs = options.debounceMs || 150;
+    this.onSubmitSearch = options.onSubmitSearch || (() => {});
     this.options = {
       onNavigateBack: options.onNavigateBack || (() => {}),
       onNavigateForward: options.onNavigateForward || (() => {}),
       onHomeClick: options.onHomeClick || (() => {}),
       onSearchInput: options.onSearchInput || (() => {}),
+      onSearch: options.onSearch || (() => {}),
+      onSubmitSearch: this.onSubmitSearch,
       onBrowseClick: options.onBrowseClick || (() => {}),
+      onBrowseFolder: options.onBrowseFolder || (() => {}),
       onOpenSettings: options.onOpenSettings || (() => {})
     };
     this.container = null;
@@ -109,24 +114,34 @@ class TopHeader {
     btnHome?.addEventListener('click', () => this.options.onHomeClick());
 
     let searchDebounceTimer = null;
-    const triggerSearch = (val) => {
+    const triggerSearch = (val, isSubmit = false) => {
       this.searchTerm = val;
       if (this.options.onSearchInput) this.options.onSearchInput(val);
       if (this.options.onSearch) this.options.onSearch(val);
+      if (isSubmit && this.options.onSubmitSearch) {
+        this.options.onSubmitSearch(val);
+      }
     };
 
     searchInput?.addEventListener('input', (e) => {
       const val = e.target.value;
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
-        triggerSearch(val);
-      }, 200);
+        triggerSearch(val, false);
+      }, 150);
     });
 
     searchInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         clearTimeout(searchDebounceTimer);
-        triggerSearch(e.target.value);
+        triggerSearch(e.target.value, true);
+      }
+    });
+
+    searchInput?.addEventListener('focus', (e) => {
+      const val = e.target.value;
+      if (val && val.trim()) {
+        triggerSearch(val, false);
       }
     });
 

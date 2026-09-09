@@ -299,12 +299,12 @@ class TrackList {
 
       if (!isSwiping) {
         // Vertical scroll detection: cancel tracking if user is scrolling vertically
-        if (Math.abs(dy) > 7 && Math.abs(dy) > Math.abs(dx)) {
+        if (Math.abs(dy) > 5 && Math.abs(dy) > Math.abs(dx)) {
           isTracking = false;
           return;
         }
         // Horizontal swipe to right detection
-        if (dx > 10 && dx > Math.abs(dy) * 1.2) {
+        if (dx > 6 && dx > Math.abs(dy)) {
           isSwiping = true;
           row.classList.add('swiping');
           try {
@@ -315,7 +315,7 @@ class TrackList {
             revealEl = document.createElement('div');
             revealEl.className = 'swipe-action-reveal';
             revealEl.innerHTML = `
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="5 4 15 12 5 20 5 4"></polygon>
                 <line x1="19" y1="5" x2="19" y2="19"></line>
               </svg>
@@ -329,8 +329,8 @@ class TrackList {
 
       if (isSwiping) {
         e.preventDefault();
-        // Clamp swipe between 0 and 150px
-        currentDeltaX = Math.max(0, Math.min(dx, 150));
+        // Clamp swipe between 0 and 100px
+        currentDeltaX = Math.max(0, Math.min(dx, 100));
         row.style.transform = `translateX(${currentDeltaX}px)`;
 
         // Keep reveal pinned to the left edge while expanding

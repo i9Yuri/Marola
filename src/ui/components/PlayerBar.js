@@ -19,7 +19,7 @@ class PlayerBar {
   mount(containerElement) {
     this.container = containerElement;
     this.container.innerHTML = `
-      <!-- Left: Track info with favorite heart -->
+      <!-- Left: Track info with Spotify checkmark badge -->
       <div class="player-track-info-area">
         <div class="player-track-info clickable" id="player-track-info-trigger" title="Clique para detalhes da faixa">
           <div class="player-cover" id="player-cover">
@@ -30,10 +30,8 @@ class PlayerBar {
             <span class="player-artist" id="player-artist">JustPlay Offline</span>
           </div>
         </div>
-        <button class="btn-icon btn-player-fav" id="player-btn-fav" title="Curtir">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-          </svg>
+        <button class="btn-icon btn-player-fav spotify-badge-btn" id="player-btn-fav" title="Salvar em Músicas Curtidas">
+          <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
       </div>
 
@@ -47,8 +45,8 @@ class PlayerBar {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
           </button>
           <button class="play-btn" id="btn-play-pause" title="Reproduzir / Pausar">
-            <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
-            <svg id="icon-pause" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
+            <svg id="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="#000000"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+            <svg id="icon-pause" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="#000000"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
           </button>
           <button class="btn-icon" id="btn-next" title="Próxima">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
@@ -104,11 +102,18 @@ class PlayerBar {
           </div>
         </div>
 
+        <!-- Elongated Draggable Volume Slider (120px) -->
         <div class="volume-control">
           <button class="btn-icon" id="btn-mute" title="Mudo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
           </button>
-          <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" title="Volume">
+          <div class="volume-slider-wrapper" id="volume-slider-wrapper" title="Volume">
+            <div class="volume-slider-bar" id="volume-slider-bar">
+              <div class="volume-slider-fill" id="volume-slider-fill" style="width: 80%;"></div>
+              <div class="volume-slider-thumb" id="volume-slider-thumb" style="left: 80%;"></div>
+            </div>
+          </div>
+          <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8" style="display:none;" title="Volume">
         </div>
 
         <button class="btn-icon" id="btn-fullscreen" title="Modo Foco / Tela Cheia">
@@ -148,6 +153,10 @@ class PlayerBar {
       progressFill: q('progress-fill'),
       timeCurrent: q('time-current'),
       timeDuration: q('time-duration'),
+      volumeSliderWrapper: q('volume-slider-wrapper'),
+      volumeSliderBar: q('volume-slider-bar'),
+      volumeSliderFill: q('volume-slider-fill'),
+      volumeSliderThumb: q('volume-slider-thumb'),
       volumeSlider: q('volume-slider'),
       btnMute: q('btn-mute'),
       btnLyrics: q('btn-lyrics'),
@@ -204,21 +213,18 @@ class PlayerBar {
       });
     }
 
-    // Volume slider
-    this.dom.volumeSlider?.addEventListener('input', (e) => {
-      const val = parseFloat(e.target.value);
-      this.audioEngine.setVolume(val);
-    });
+    // Draggable Volume Slider with Continuous Scrubbing
+    this._bindVolumeEvents();
 
     this.dom.btnMute?.addEventListener('click', () => {
       if (this.audioEngine.volume > 0) {
         this.prevVolume = this.audioEngine.volume;
         this.audioEngine.setVolume(0);
-        if (this.dom.volumeSlider) this.dom.volumeSlider.value = 0;
+        this._updateVolumeUi(0);
       } else {
         const restore = this.prevVolume || 0.8;
         this.audioEngine.setVolume(restore);
-        if (this.dom.volumeSlider) this.dom.volumeSlider.value = restore;
+        this._updateVolumeUi(restore);
       }
     });
 
@@ -227,7 +233,7 @@ class PlayerBar {
       if (!this.dom.progressBar) return;
       const rect = this.dom.progressBar.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-      const pct = clickX / rect.width;
+      const pct = rect.width > 0 ? clickX / rect.width : 0;
       const active = this.audioEngine.getActiveDeck();
       if (active?.audio && !isNaN(active.audio.duration)) {
         const targetSec = pct * active.audio.duration;
@@ -256,7 +262,7 @@ class PlayerBar {
     this.audioEngine.on('stateChange', ({ isPlaying, volume }) => {
       if (this.dom.iconPlay) this.dom.iconPlay.style.display = isPlaying ? 'none' : 'block';
       if (this.dom.iconPause) this.dom.iconPause.style.display = isPlaying ? 'block' : 'none';
-      if (this.dom.volumeSlider) this.dom.volumeSlider.value = volume;
+      this._updateVolumeUi(volume);
     });
 
     this.audioEngine.on('timeupdate', ({ currentTime, duration, progress }) => {
@@ -269,13 +275,61 @@ class PlayerBar {
 
     this.audioEngine.on('trackChange', ({ track }) => {
       this._updateTrackDisplay(track);
+      this.updateFavoriteState();
     });
   }
 
+  _bindVolumeEvents() {
+    const wrapper = this.dom.volumeSliderWrapper;
+    if (!wrapper) return;
+
+    const handleVolumePointer = (e) => {
+      const rect = wrapper.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const ratio = rect.width > 0 ? Math.max(0, Math.min(1, clickX / rect.width)) : 0;
+      this.audioEngine.setVolume(ratio);
+      this._updateVolumeUi(ratio);
+    };
+
+    wrapper.addEventListener('pointerdown', (e) => {
+      this.isDraggingVolume = true;
+      wrapper.classList.add('is-dragging');
+      try { wrapper.setPointerCapture(e.pointerId); } catch (err) {}
+      handleVolumePointer(e);
+    });
+
+    wrapper.addEventListener('pointermove', (e) => {
+      if (this.isDraggingVolume) {
+        handleVolumePointer(e);
+      }
+    });
+
+    const endDrag = (e) => {
+      if (this.isDraggingVolume) {
+        this.isDraggingVolume = false;
+        wrapper.classList.remove('is-dragging');
+        try { wrapper.releasePointerCapture(e.pointerId); } catch (err) {}
+        if (typeof window !== 'undefined' && window.api?.updateSettings) {
+          window.api.updateSettings({ volume: this.audioEngine.volume });
+        }
+      }
+    };
+
+    wrapper.addEventListener('pointerup', endDrag);
+    wrapper.addEventListener('pointercancel', endDrag);
+  }
+
+  _updateVolumeUi(vol) {
+    const clamped = Math.max(0, Math.min(1, typeof vol === 'number' ? vol : 0.8));
+    const pct = `${(clamped * 100).toFixed(1)}%`;
+    if (this.dom.volumeSliderFill) this.dom.volumeSliderFill.style.width = pct;
+    if (this.dom.volumeSliderThumb) this.dom.volumeSliderThumb.style.left = pct;
+    if (this.dom.volumeSlider) this.dom.volumeSlider.value = clamped;
+  }
+
   _syncInitialState() {
-    if (this.dom.volumeSlider) {
-      this.dom.volumeSlider.value = this.audioEngine.volume;
-    }
+    const vol = typeof this.audioEngine.volume === 'number' ? this.audioEngine.volume : 0.8;
+    this._updateVolumeUi(vol);
     this._updateRepeatUi(this.queueManager.repeatMode);
     if (this.dom.btnShuffle) {
       this.dom.btnShuffle.classList.toggle('active', this.queueManager.shuffle);
@@ -300,15 +354,28 @@ class PlayerBar {
     }
   }
 
+  updateFavoriteState() {
+    const track = this.queueManager?.getCurrentTrack();
+    if (!track?.filePath) {
+      this.syncFavoriteState(false);
+      return;
+    }
+    const isFav = this.audioEngine?.app?.isFavorite
+      ? this.audioEngine.app.isFavorite(track.filePath)
+      : false;
+    this.syncFavoriteState(isFav);
+  }
+
   syncFavoriteState(isFav) {
     if (!this.dom.btnFav) return;
-    const svg = this.dom.btnFav.querySelector('svg');
     if (isFav) {
       this.dom.btnFav.classList.add('active');
-      if (svg) svg.setAttribute('fill', 'var(--accent-color)');
+      this.dom.btnFav.title = 'Salvo em Músicas Curtidas';
+      this.dom.btnFav.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#1ed760"/><path d="M11.5 5.5L6.8 10.5L4.5 8.2" stroke="#000000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
     } else {
       this.dom.btnFav.classList.remove('active');
-      if (svg) svg.setAttribute('fill', 'none');
+      this.dom.btnFav.title = 'Salvar em Músicas Curtidas';
+      this.dom.btnFav.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.25" stroke="#a7a7a7" stroke-width="1.5" fill="none"/><path d="M8 5v6M5 8h6" stroke="#a7a7a7" stroke-width="1.5" stroke-linecap="round"/></svg>`;
     }
   }
 

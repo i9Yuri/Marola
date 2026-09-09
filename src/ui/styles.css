@@ -31,12 +31,12 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --accent: #1d4ed8;
+  --accent: #1ed760;
   --accent-color: var(--accent);
-  --accent-hover: #1e40af;
-  --accent-subtle: rgba(29, 78, 216, 0.15);
+  --accent-hover: #1db954;
+  --accent-subtle: rgba(30, 215, 96, 0.15);
   --accent-faded: var(--accent-subtle);
-  --accent-contrast-text: #ffffff;
+  --accent-contrast-text: #090d16;
   --danger: #ef4444;
   --danger-hover: #dc2626;
 }
@@ -885,21 +885,28 @@ body {
 }
 
 .play-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
-  background-color: var(--accent);
+  background-color: #ffffff;
   color: #000000;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
 .play-btn:hover {
   transform: scale(1.06);
-  background-color: var(--accent-hover);
+  background-color: #ffffff;
+}
+
+.play-btn svg {
+  fill: #000000;
 }
 
 .progress-container {
@@ -931,13 +938,13 @@ body {
   top: 0;
   left: 0;
   height: 100%;
-  background-color: var(--accent);
+  background-color: #ffffff;
   border-radius: 2px;
   pointer-events: none;
 }
 
 .slider-track:hover .slider-fill {
-  background-color: var(--accent-hover);
+  background-color: #1ed760;
 }
 
 /* Right Controls (Utilities, ~30%) */
@@ -954,26 +961,66 @@ body {
 .volume-control {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.volume-control input[type="range"] {
-  width: 80px;
-  height: 4px;
-  accent-color: #1ed760;
-  cursor: pointer;
-}
-
-.volume-control {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.volume-control input[type="range"] {
-  width: 75px;
-  accent-color: var(--accent);
+/* Elongated Draggable Volume Slider (120px) */
+.volume-slider-wrapper {
+  width: 120px;
+  height: 16px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
+  touch-action: none;
+  position: relative;
+}
+
+.volume-slider-bar {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  position: relative;
+  overflow: visible;
+}
+
+.volume-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background-color: #ffffff;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background-color 0.12s ease;
+}
+
+.volume-slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.1s ease;
+}
+
+.volume-slider-wrapper:hover .volume-slider-fill,
+.volume-slider-wrapper.is-dragging .volume-slider-fill {
+  background-color: #1ed760;
+}
+
+.volume-slider-wrapper:hover .volume-slider-thumb,
+.volume-slider-wrapper.is-dragging .volume-slider-thumb {
+  opacity: 1;
+}
+
+.volume-control input[type="range"] {
+  display: none;
 }
 
 /* Native Dialog / Modal Styles */
@@ -1734,20 +1781,92 @@ body.has-custom-bg .split-card {
   transform: scale(1.15);
 }
 
-/* --- Swipe-to-Action (Drag to the Right) --- */
-.track-row {
+/* --- Virtual Windowing & Swipe-to-Action (Drag to the Right) --- */
+.track-virtual-item {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  overflow: hidden;
+  contain: layout style paint;
+  contain-intrinsic-size: 56px;
+}
+
+.swipe-reveal-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #1ed760;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 20px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  border-radius: 4px;
+}
+
+.track-virtual-item.is-swiping .swipe-reveal-layer {
+  opacity: 1;
+}
+
+.swipe-reveal-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  transform: scale(0.92);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swipe-reveal-layer.ready .swipe-reveal-content {
+  transform: scale(1.05);
+}
+
+.track-virtual-item .spotify-track-row,
+.track-virtual-item .at-row {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.track-virtual-item.is-swiping .spotify-track-row,
+.track-virtual-item.is-swiping .at-row,
+.spotify-track-row.swiping,
+.spotify-track-row.swipe-snapping,
+.at-row.swiping,
+.at-row.swipe-snapping {
+  background-color: #181818 !important;
+}
+
+.track-row,
+.spotify-track-row,
+.at-row {
   position: relative;
   touch-action: pan-y;
   user-select: none;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.12s ease;
 }
 
-.track-row.swiping {
+.track-row.swiping,
+.spotify-track-row.swiping,
+.at-row.swiping {
   transition: none !important;
 }
 
-.track-row.swipe-snapping {
-  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+.track-row.swipe-snapping,
+.spotify-track-row.swipe-snapping,
+.at-row.swipe-snapping {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .swipe-action-reveal {
@@ -1760,8 +1879,8 @@ body.has-custom-bg .split-card {
   align-items: center;
   gap: 8px;
   padding-left: 16px;
-  background-color: var(--accent-subtle);
-  color: var(--accent-color);
+  background-color: rgba(30, 215, 96, 0.2);
+  color: #1ed760;
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
@@ -1774,9 +1893,9 @@ body.has-custom-bg .split-card {
 }
 
 .swipe-action-reveal.ready {
-  background-color: var(--accent-color);
-  color: var(--accent-contrast-text);
-  box-shadow: 0 0 16px var(--accent-subtle);
+  background-color: #1ed760;
+  color: #000000;
+  box-shadow: 0 0 16px rgba(30, 215, 96, 0.3);
 }
 
 /* --- Playlist Manual Reordering Drag & Drop --- */
@@ -2238,7 +2357,7 @@ body.has-custom-bg .split-card {
   min-width: 64px;
   max-width: 64px;
   aspect-ratio: 1 / 1;
-  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #0f5132 0%, #1ed760 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -2805,7 +2924,7 @@ body.has-custom-bg .split-card {
   gap: 6px;
   font-size: 12px;
   font-weight: 700;
-  color: #3b82f6;
+  color: #1ed760;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -3228,6 +3347,49 @@ body.has-custom-bg .split-card {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  position: relative;
+}
+
+.spotify-table-phantom {
+  position: relative;
+  width: 100%;
+}
+
+.spotify-table-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spotify-badge-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #a7a7a7;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.spotify-badge-btn:hover {
+  transform: scale(1.08);
+}
+
+.spotify-badge-btn:hover svg circle[stroke] {
+  stroke: #ffffff;
+}
+
+.spotify-badge-btn:hover svg path[stroke="#a7a7a7"] {
+  stroke: #ffffff;
 }
 
 .spotify-track-row {
