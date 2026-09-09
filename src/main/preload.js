@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   upsertTrack: (track) => ipcRenderer.invoke('db:upsertTrack', track),
   upsertTracksBatch: (tracks) => ipcRenderer.invoke('db:upsertTracksBatch', tracks),
   incrementPlayCount: (filePath) => ipcRenderer.invoke('db:incrementPlayCount', filePath),
+  getArtistStats: (artist) => ipcRenderer.invoke('db:getArtistStats', artist),
 
   // Playlists
   getPlaylists: (sortBy) => ipcRenderer.invoke('db:getPlaylists', sortBy),

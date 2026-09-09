@@ -212,10 +212,14 @@ class HomeRecentView {
         </div>
       `,
       onNavigate: () => {
-        this.setActiveFilter('all');
-        this.filterByFavorites();
-        const body = this.container?.querySelector('#library-body');
-        body?.scrollIntoView({ behavior: 'smooth' });
+        if (this.app.openLikedSongs) {
+          this.app.openLikedSongs();
+        } else {
+          this.setActiveFilter('all');
+          this.filterByFavorites();
+          const body = this.container?.querySelector('#library-body');
+          body?.scrollIntoView({ behavior: 'smooth' });
+        }
       },
       onPlay: async () => {
         const favPaths = Array.from(this.app.favoritesSet || []);
@@ -243,8 +247,12 @@ class HomeRecentView {
           </div>
         `,
         onNavigate: () => {
-          this.app.switchView('playlists');
-          this.app.views?.playlists?.selectPlaylist(pl.id);
+          if (this.app.openPlaylist) {
+            this.app.openPlaylist(pl);
+          } else {
+            this.app.switchView('playlists');
+            this.app.views?.playlists?.selectPlaylist(pl.id);
+          }
         },
         onPlay: async () => {
           if (typeof window !== 'undefined' && window.api?.getPlaylistTracks) {

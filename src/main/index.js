@@ -210,6 +210,7 @@ function registerIpcHandlers() {
   ipcMain.handle('db:upsertTrack', (_, track) => storage.upsertTrack(track));
   ipcMain.handle('db:upsertTracksBatch', (_, tracks) => storage.upsertTracksBatch(tracks));
   ipcMain.handle('db:incrementPlayCount', (_, filePath) => storage.incrementPlayCount(filePath));
+  ipcMain.handle('db:getArtistStats', (_, artist) => storage.getArtistStats(artist));
 
   // Playlists
   ipcMain.handle('db:getPlaylists', (_, sortBy) => storage.getPlaylists(sortBy));

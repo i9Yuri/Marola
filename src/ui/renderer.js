@@ -34,15 +34,36 @@ async function initApp() {
       this.currentView = target;
       const recentContainer = document.getElementById('view-recent-container');
       const playlistsContainer = document.getElementById('view-playlists-container');
+      const playlistDetailContainer = document.getElementById('view-playlist-detail-container');
 
       if (target === 'recent') {
         if (recentContainer) recentContainer.style.display = 'flex';
         if (playlistsContainer) playlistsContainer.style.display = 'none';
+        if (playlistDetailContainer) playlistDetailContainer.style.display = 'none';
         if (this.views.recent) this.views.recent.loadTracks();
       } else if (target === 'playlists') {
         if (recentContainer) recentContainer.style.display = 'none';
         if (playlistsContainer) playlistsContainer.style.display = 'flex';
+        if (playlistDetailContainer) playlistDetailContainer.style.display = 'none';
         if (this.views.playlists) this.views.playlists.loadData();
+      } else if (target === 'playlist-detail') {
+        if (recentContainer) recentContainer.style.display = 'none';
+        if (playlistsContainer) playlistsContainer.style.display = 'none';
+        if (playlistDetailContainer) playlistDetailContainer.style.display = 'flex';
+      }
+    },
+
+    async openPlaylist(playlist) {
+      this.switchView('playlist-detail');
+      if (this.views.playlistDetail) {
+        await this.views.playlistDetail.loadPlaylist(playlist);
+      }
+    },
+
+    async openLikedSongs() {
+      this.switchView('playlist-detail');
+      if (this.views.playlistDetail) {
+        await this.views.playlistDetail.loadPlaylist({ id: 'liked', type: 'liked', name: 'Músicas Curtidas' });
       }
     },
 
@@ -122,14 +143,18 @@ async function initApp() {
     },
 
     playTrackDirectly(track, trackList, startIndex = 0) {
-      queueManager.setQueue(trackList, startIndex);
-      audioEngine.playTrack(track);
+      requestAnimationFrame(() => {
+        queueManager.setQueue(trackList, startIndex);
+        audioEngine.playTrack(track);
+      });
     },
 
     setQueueAndPlay(trackList, startIndex = 0) {
-      queueManager.setQueue(trackList, startIndex);
-      const track = queueManager.getCurrentTrack();
-      if (track) audioEngine.playTrack(track);
+      requestAnimationFrame(() => {
+        queueManager.setQueue(trackList, startIndex);
+        const track = queueManager.getCurrentTrack();
+        if (track) audioEngine.playTrack(track);
+      });
     },
 
     openPromptModal(title, initialValue, onConfirm) {
@@ -263,6 +288,7 @@ async function initApp() {
   const sidebarRightContainer = document.getElementById('sidebar-right-container');
   const recentViewContainer = document.getElementById('view-recent-container');
   const playlistsViewContainer = document.getElementById('view-playlists-container');
+  const playlistDetailContainer = document.getElementById('view-playlist-detail-container');
   const queueDrawerContainer = document.getElementById('queue-drawer-container');
   const lyricsDrawerContainer = document.getElementById('lyrics-drawer-container');
   const nowPlayingContainer = document.getElementById('now-playing-container');
@@ -274,6 +300,7 @@ async function initApp() {
   let sidebarRight = null;
   let homeRecentView = null;
   let playlistsRankView = null;
+  let playlistDetailView = null;
   let queueView = null;
   let lyricsView = null;
   let nowPlayingView = null;
@@ -294,6 +321,14 @@ async function initApp() {
     if (playlistsViewContainer) playlistsRankView.mount(playlistsViewContainer);
   } catch (e) {
     console.error('[Renderer] Error mounting PlaylistsRankView:', e);
+  }
+
+  try {
+    playlistDetailView = new PlaylistDetailView(app);
+    app.views.playlistDetail = playlistDetailView;
+    if (playlistDetailContainer) playlistDetailView.mount(playlistDetailContainer);
+  } catch (e) {
+    console.error('[Renderer] Error mounting PlaylistDetailView:', e);
   }
 
   try {
@@ -368,13 +403,16 @@ async function initApp() {
   try {
     libraryRail = new LibraryRail(app, {
       onSelectLikedSongs: () => {
-        app.switchView('recent');
-        homeRecentView?.setActiveFilter('all');
-        homeRecentView?.filterByFavorites();
+        app.openLikedSongs();
       },
       onSelectPlaylist: (playlistId) => {
-        app.switchView('playlists');
-        playlistsRankView?.selectPlaylist(playlistId);
+        const pl = libraryRail?.playlists?.find(p => p.id === playlistId);
+        if (pl) {
+          app.openPlaylist(pl);
+        } else {
+          app.switchView('playlists');
+          playlistsRankView?.selectPlaylist(playlistId);
+        }
       },
       onCreatePlaylist: () => {
         app.openCreatePlaylistModal(async (name) => {
@@ -487,6 +525,9 @@ async function initApp() {
     if (playlistsRankView?.trackList?.updatePlayingState) {
       playlistsRankView.trackList.updatePlayingState();
     }
+    if (playlistDetailView?.updatePlayingState) {
+      playlistDetailView.updatePlayingState();
+    }
   };
 
   queueManager.on('currentTrackChanged', (track) => {
@@ -496,13 +537,16 @@ async function initApp() {
   });
 
   audioEngine.on('stateChange', ({ isPlaying }) => {
-    document.querySelectorAll('.track-row.playing').forEach(row => {
+    document.querySelectorAll('.track-row.playing, .spotify-track-row.playing').forEach(row => {
       if (isPlaying) {
         row.classList.remove('paused');
       } else {
         row.classList.add('paused');
       }
     });
+    if (playlistDetailView?.updatePlayingState) {
+      playlistDetailView.updatePlayingState();
+    }
   });
 
   // Save settings when mode changes

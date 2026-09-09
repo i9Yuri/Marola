@@ -195,6 +195,27 @@ class StorageManager {
       .slice(0, limit);
   }
 
+  /**
+   * Computes lightweight stats for an artist (play count and track count)
+   * without serializing heavy base64 cover strings across IPC.
+   */
+  getArtistStats(artistName) {
+    if (!artistName || typeof artistName !== 'string') {
+      return { totalPlays: 0, trackCount: 0 };
+    }
+    const target = artistName.toLowerCase().trim();
+    let totalPlays = 0;
+    let trackCount = 0;
+
+    for (const track of Object.values(this.data.tracks)) {
+      if (track.artist && track.artist.toLowerCase().trim() === target) {
+        trackCount++;
+        totalPlays += (typeof track.play_count === 'number' ? track.play_count : 0);
+      }
+    }
+    return { totalPlays, trackCount };
+  }
+
   // --- Playlist CRUD & Ordering ---
 
   createPlaylist(name) {

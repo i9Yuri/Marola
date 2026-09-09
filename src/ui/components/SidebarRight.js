@@ -219,6 +219,9 @@ class SidebarRight {
   async computeArtistStats(artistName) {
     if (!artistName) return { totalPlays: 0, trackCount: 0 };
     try {
+      if (typeof window !== 'undefined' && window.api?.getArtistStats) {
+        return await window.api.getArtistStats(artistName);
+      }
       if (typeof window !== 'undefined' && window.api?.getTracks) {
         const allTracks = await window.api.getTracks();
         const artistTracks = (allTracks || []).filter(t => (t.artist || '').toLowerCase() === artistName.toLowerCase());
