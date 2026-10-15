@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=JustPlay (Dev)
+GenericName=Music Player
+Comment=Player de música desktop offline - Modo Desenvolvimento
+Exec=./run-dev.sh
+Path=.
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Icon=audio-player
+StartupNotify=true
+StartupWMClass=justplay

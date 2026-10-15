@@ -53,6 +53,13 @@ Inicie o player:
 npm start
 ```
 
+### ⚡ Inicialização Rápida (Duplo Clique / Desktop)
+
+Para testes interativos imediatos no ambiente desktop Linux sem necessidade de digitação em terminal:
+- **Gerenciador de Arquivos (Dolphin / Nautilus / Thunar):** execute com duplo clique o script `run-dev.sh` ou o atalho `JustPlay-Dev.desktop`.
+- **Terminal:** execute `./run-dev.sh`.
+- O launcher gerencia encerramento gracioso de subprocessos, previne sobreposição de instâncias concorrentes e valida dependências locais com alertas visuais no desktop.
+
 ---
 
 ## 🧪 Testes Automatizados
