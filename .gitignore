@@ -5,3 +5,4 @@ test/temp_*.json
 test/e2e_test_db.json
 Singleton*
 *.lock
+staging/

@@ -1,7 +1,8 @@
 {
-  "name": "justplay",
+  "name": "marola",
+  "productName": "Marola",
   "version": "1.0.0",
-  "description": "Functional offline desktop music player for Linux with dual-deck crossfade, queue management and local metrics",
+  "description": "Player de música desktop offline Sunset & Sea para Linux com crossfade em tempo real, visualização imersiva e equalizador",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron . --no-sandbox",

@@ -17,7 +17,7 @@ function createWindow() {
     minWidth: 920,
     minHeight: 600,
     backgroundColor: '#090d16',
-    title: 'JustPlay - Offline Music Player',
+    title: 'Marola - Player de Música Offline',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

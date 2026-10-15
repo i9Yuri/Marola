@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JustPlay - Player de Música Offline</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marola - Player de Música Offline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script>
     window.addEventListener('error', (e) => {
@@ -15,92 +18,250 @@
   </script>
 </head>
 <body>
-  <!-- Custom Background Layers -->
-  <div id="app-bg-layer"></div>
-  <div id="app-bg-dimmer"></div>
 
-  <div id="app-container">
-    <!-- Top Global Header & Search Navigation -->
-    <header id="top-header-container"></header>
+<!-- Ícones SVG -->
+<svg width="0" height="0" style="position:absolute; display:none" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.3"/><rect x="13.5" y="5" width="4" height="14" rx="1.3"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><rect x="5" y="5" width="2.4" height="14" rx="1.1"/><path d="M18.5 6.1v11.8a.9.9 0 0 1-1.4.74l-8-5.9a.9.9 0 0 1 0-1.48l8-5.9a.9.9 0 0 1 1.4.74z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><rect x="16.6" y="5" width="2.4" height="14" rx="1.1"/><path d="M5.5 6.1v11.8a.9.9 0 0 0 1.4.74l8-5.9a.9.9 0 0 0 0-1.48l-8-5.9a.9.9 0 0 0-1.4.74z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.7l2.4 3.6c1.1 1.7 2.3 2.7 4.3 2.7H21"/><path d="M3 17h3.5c1.4 0 2.4-.5 3.2-1.4"/><path d="M13.3 8.7c.8-.9 1.8-1.4 3.2-1.4H21"/><path d="m18.5 4.5 2.5 2.5-2.5 2.5"/><path d="m18.5 14.5 2.5 2.5-2.5 2.5"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11V9.5A2.5 2.5 0 0 1 6.5 7H20"/><path d="m17 4 3 3-3 3"/><path d="M20 13v1.5a2.5 2.5 0 0 1-2.5 2.5H4"/><path d="m7 20-3-3 3-3"/></symbol>
+  <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="M4 11V9.5A2.5 2.5 0 0 1 6.5 7H20"/><path d="m17 4 3 3-3 3"/><path d="M20 13v1.5a2.5 2.5 0 0 1-2.5 2.5H4"/><path d="m7 20-3-3 3-3"/><path d="m11 10.6 1.4-.9v4.6"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6.5l10-2V16"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/></symbol>
+  <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h12M4 11h12M4 16h7"/><circle cx="17.5" cy="17" r="2.2"/><path d="M19.7 17V9.5l2-.5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7.5 11 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h10M18 18h2"/><circle cx="16" cy="18" r="2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-max" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-spk" viewBox="0 0 24 24"><rect x="6" y="3.5" width="12" height="17" rx="3"/><circle cx="12" cy="14.5" r="3"/><circle cx="12" cy="7.8" r=".9"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 4h6l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></symbol>
+</svg>
 
-    <!-- 3-Column Body Grid: Left Library Rail, Center Views, Right Artist/NowPlaying -->
-    <div id="app-body-grid">
-      <!-- Left Collapsed Library Rail (~72px) -->
-      <aside id="sidebar-rail-container"></aside>
+<div class="window" id="win" aria-label="Marola, player de música">
 
-      <!-- Center Dynamic View Panel -->
-      <main id="main-content-panel">
-        <div id="view-recent-container" style="display: flex; flex-direction: column; width: 100%; height: 100%;"></div>
-        <div id="view-all-tracks-container" style="display: none; flex-direction: column; width: 100%; height: 100%;"></div>
-        <div id="view-search-container" style="display: none; flex-direction: column; width: 100%; height: 100%;"></div>
-        <div id="view-playlists-container" style="display: none; flex-direction: column; width: 100%; height: 100%;"></div>
-        <div id="view-playlist-detail-container" style="display: none; flex-direction: column; width: 100%; height: 100%;"></div>
-
-        <!-- Sliding Drawers Inside Center Panel -->
-        <div id="queue-drawer-container"></div>
-        <div id="lyrics-drawer-container"></div>
-      </main>
-
-      <!-- Right Insights / Now Playing Panel (~320px) -->
-      <aside id="sidebar-right-container"></aside>
+  <!-- Titlebar personalizada -->
+  <header class="titlebar">
+    <div class="brand">
+      <svg viewBox="0 0 30 26" aria-hidden="true">
+        <circle cx="15" cy="10" r="7.5" fill="var(--accent)"/>
+        <path d="M2 17.5q3.25-3 6.5 0t6.5 0 6.5 0 6.5 0" fill="none" stroke="#E9F2F5" stroke-width="2" stroke-linecap="round"/>
+        <path d="M2 22.5q3.25-3 6.5 0t6.5 0 6.5 0 6.5 0" fill="none" stroke="#E9F2F5" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>marola</span>
     </div>
+    <label class="search">
+      <svg class="i"><use href="#i-search"/></svg>
+      <input id="q" type="search" placeholder="Buscar músicas, artistas e álbuns" aria-label="Buscar na coleção" autocomplete="off" spellcheck="false">
+      <kbd>Ctrl K</kbd>
+    </label>
+    <div class="tb-actions">
+      <button class="round" id="btn-minimize" aria-label="Minimizar"><svg class="i"><use href="#i-min"/></svg></button>
+      <button class="round" id="btn-maximize" aria-label="Maximizar"><svg class="i"><use href="#i-max"/></svg></button>
+      <button class="round close" id="btn-close" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+  </header>
 
-    <!-- Bottom Player Bar (Trifurcated Controls) -->
-    <footer id="player-bar"></footer>
+  <!-- Shell principal de 3 colunas -->
+  <div class="shell">
+
+    <!-- Rail lateral de navegação -->
+    <nav class="rail" aria-label="Seções">
+      <div class="rail-g">
+        <button class="rb" id="rail-tracks" aria-current="page"><svg class="i"><use href="#i-music"/></svg>Músicas</button>
+        <button class="rb" id="rail-albums"><svg class="i"><use href="#i-disc"/></svg>Álbuns</button>
+        <button class="rb" id="rail-artists"><svg class="i"><use href="#i-user"/></svg>Artistas</button>
+        <button class="rb" id="rail-playlists"><svg class="i"><use href="#i-list"/></svg>Playlists</button>
+      </div>
+      <div class="rail-g">
+        <button class="rb" id="rail-import" title="Adicionar Pasta / Músicas"><svg class="i"><use href="#i-down"/></svg>Vitrola</button>
+        <button class="rb" id="rail-settings"><svg class="i"><use href="#i-sliders"/></svg>Ajustes</button>
+      </div>
+    </nav>
+
+    <!-- Cena central: Sunset & Sea + Doca -->
+    <main class="scene" id="scene" aria-label="Tocando agora">
+      <div class="stage">
+        <div class="sky"></div>
+        <div class="sun" id="sun" aria-hidden="true">
+          <div class="halo"></div>
+          <div class="disc">
+            <div class="art on" id="artA"></div>
+            <div class="art" id="artB"></div>
+            <div class="grooves"></div>
+          </div>
+        </div>
+        <div class="sea"><canvas id="sea" aria-hidden="true"></canvas></div>
+      </div>
+
+      <div class="meta">
+        <h1 id="ttl">Marola</h1>
+        <p class="by" id="by">Selecione uma faixa para ouvir</p>
+        <p class="alb" id="alb">Sunset & Sea Player</p>
+      </div>
+      <div class="pills">
+        <span class="pill" id="fmt">Áudio Local</span>
+        <button class="pill" id="eqpill"><span class="dot"></span><span id="eqpilltx">Som: Equalizador</span></button>
+      </div>
+
+      <!-- Doca de controles flutuante -->
+      <div class="dock">
+        <div class="seek-row">
+          <span class="t" id="tcur">0:00</span>
+          <div class="seek" id="seek" role="slider" tabindex="0" aria-label="Posição na faixa" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0">
+            <canvas id="seekc" aria-hidden="true"></canvas>
+            <span class="tip" id="tip">0:00</span>
+          </div>
+          <span class="t" id="tdur">0:00</span>
+        </div>
+        <div class="ctrl-row">
+          <div class="cl">
+            <button class="ib" id="bShuf" aria-pressed="false" aria-label="Aleatório"><svg class="i"><use href="#i-shuffle"/></svg></button>
+            <button class="ib" id="bRep" aria-pressed="false" aria-label="Repetir: desligado"><svg class="i"><use id="repUse" href="#i-repeat"/></svg></button>
+          </div>
+          <div class="cc">
+            <button class="ib big" id="bPrev" aria-label="Faixa anterior"><svg class="i f"><use href="#i-prev"/></svg></button>
+            <button class="play" id="bPlay" aria-label="Tocar"><svg class="i f"><use id="playUse" href="#i-play"/></svg></button>
+            <button class="ib big" id="bNext" aria-label="Próxima faixa"><svg class="i f"><use href="#i-next"/></svg></button>
+          </div>
+          <div class="cr">
+            <div class="vol">
+              <button class="ib" id="bMute" aria-label="Silenciar"><svg class="i"><use id="volUse" href="#i-vol"/></svg></button>
+              <input id="vol" type="range" min="0" max="100" value="70" aria-label="Volume">
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Painel lateral da direita: Músicas, Fila e Equalizador -->
+    <aside class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-lib" aria-selected="true" aria-controls="pane-lib">Músicas</button>
+        <button class="tab" role="tab" id="tab-q" aria-selected="false" aria-controls="pane-q">Fila <span class="cnt" id="qcnt">0</span></button>
+        <button class="tab" role="tab" id="tab-eq" aria-selected="false" aria-controls="pane-eq">Som</button>
+      </div>
+
+      <!-- Aba 1: Biblioteca e Coleção -->
+      <section class="pane" id="pane-lib" role="tabpanel" aria-labelledby="tab-lib">
+        <div class="chips" id="chips" role="group" aria-label="Filtrar coleção"></div>
+        <ul class="list" id="list"></ul>
+      </section>
+
+      <!-- Aba 2: Fila de Reprodução -->
+      <section class="pane" id="pane-q" role="tabpanel" aria-labelledby="tab-q" hidden>
+        <div class="sec"><h3>Tocando agora</h3></div>
+        <ul class="list" style="flex:none;padding-top:0;padding-bottom:0" id="qnow"></ul>
+        <div class="sec">
+          <h3>A seguir</h3>
+          <button class="link" id="qclear">Limpar fila</button>
+        </div>
+        <ul class="list" id="qlist"></ul>
+      </section>
+
+      <!-- Aba 3: Equalizador e Som -->
+      <section class="pane eq" id="pane-eq" role="tabpanel" aria-labelledby="tab-eq" hidden>
+        <div class="eq-top">
+          <div><strong>Equalizador</strong><span id="eqsub">V13 Cinema/Phonk</span></div>
+          <button class="switch" id="eqsw" role="switch" aria-checked="true" aria-label="Equalizador ligado"></button>
+        </div>
+        <div class="chips" id="presets" role="group" aria-label="Perfis"></div>
+        <div class="eq-box" id="eqbox">
+          <div class="vals" id="vals"></div>
+          <div class="plot" id="plot">
+            <svg class="curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <line class="zero" x1="0" x2="100" y1="50" y2="50"/>
+              <path class="area" id="eqArea"/>
+              <path class="line" id="eqLine"/>
+            </svg>
+            <div class="rails" id="rails"></div>
+          </div>
+          <div class="fqs" id="fqs"></div>
+        </div>
+        <p class="hint">Arraste os pontos para ajustar o ganho em dB. Com um ponto selecionado, use as setas do teclado para o ajuste fino. Frequências em Hz.</p>
+        <button class="out" id="out-sink" aria-label="Selecionar saída de áudio">
+          <svg class="i"><use href="#i-spk"/></svg>
+          <span><small>Saída de áudio</small><strong id="current-sink-label">Alto-falantes do sistema</strong></span>
+          <svg class="i"><use href="#i-chev"/></svg>
+        </button>
+      </section>
+    </aside>
+
   </div>
+</div>
 
-  <!-- Fullscreen Slide-Up Now Playing Overlay -->
-  <div id="now-playing-container"></div>
-
-  <!-- Settings Modal Container -->
-  <div id="settings-modal-container"></div>
-
-  <!-- Generic Prompt Modal -->
-  <div class="modal-overlay" id="generic-modal">
-    <div class="modal-card">
-      <h3 id="modal-title">Título do Modal</h3>
-      <input type="text" class="modal-input" id="modal-input" placeholder="Digite aqui...">
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="modal-btn-cancel">Cancelar</button>
-        <button class="btn btn-primary" id="modal-btn-confirm">Confirmar</button>
+<!-- Modal de Ajustes / Configurações -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Ajustes do Marola</h3>
+      <button class="round close" id="btn-close-settings" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-group">
+        <label>Crossfade de Áudio (Segundos): <strong id="crossfade-val">3s</strong></label>
+        <input type="range" id="crossfade-slider" min="0" max="12" step="0.5" value="3">
+      </div>
+      <div class="setting-group">
+        <label>Gerenciador de Pastas de Música</label>
+        <div class="folders-actions">
+          <button class="btn btn-secondary" id="btn-add-music-folder"><svg class="i"><use href="#i-folder"/></svg>Adicionar Pasta</button>
+          <button class="btn btn-primary" id="btn-rescan-folders">Reescanear Biblioteca</button>
+        </div>
+        <ul class="folders-list" id="music-folders-list"></ul>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Add to Playlist Picker Modal -->
-  <div class="modal-overlay" id="playlist-picker-modal">
-    <div class="modal-card">
-      <h3>Adicionar à Playlist</h3>
-      <div class="playlists-list" id="playlist-picker-list" style="max-height: 240px; overflow-y: auto;"></div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="playlist-picker-close">Fechar</button>
+<!-- Modal para Criar / Adicionar a Playlist -->
+<div class="modal-overlay" id="playlist-picker-modal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="playlist-modal-title">Adicionar à Playlist</h3>
+      <button class="round close" id="playlist-picker-close" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="new-playlist-row">
+        <input type="text" id="new-playlist-input" placeholder="Nome da nova playlist...">
+        <button class="btn btn-primary" id="btn-create-playlist-confirm">Criar</button>
       </div>
+      <div class="playlists-list" id="playlist-picker-list"></div>
     </div>
   </div>
+</div>
 
-  <!-- Toast Notification -->
-  <div class="toast-msg" id="toast-notification"></div>
+<!-- Toast de Notificações -->
+<div class="toast-msg" id="toast-notification"></div>
 
-  <script src="../services/configStorage.js"></script>
-  <script src="../services/playlistCoverService.js"></script>
-  <script src="../services/libraryScanner.js"></script>
-  <script src="../audio/queue-manager.js"></script>
-  <script src="../audio/audio-engine.js"></script>
-  <script src="components/TopHeader.js"></script>
-  <script src="components/LibraryRail.js"></script>
-  <script src="components/SidebarRight.js"></script>
-  <script src="components/TrackItem.js"></script>
-  <script src="components/TrackList.js"></script>
-  <script src="components/PlayerBar.js"></script>
-  <script src="components/HomeRecentView.js"></script>
-  <script src="components/AllTracksView.js"></script>
-  <script src="components/SearchView.js"></script>
-  <script src="components/PlaylistsRankView.js"></script>
-  <script src="components/PlaylistDetailView.js"></script>
-  <script src="components/QueueView.js"></script>
-  <script src="components/LyricsView.js"></script>
-  <script src="components/NowPlayingView.js"></script>
-  <script src="components/SettingsModal.js"></script>
-  <script src="renderer.js"></script>
+<!-- Carregamento de scripts de serviços, áudio e UI -->
+<script src="../services/configStorage.js"></script>
+<script src="../services/playlistCoverService.js"></script>
+<script src="../services/libraryScanner.js"></script>
+<script src="../audio/queue-manager.js"></script>
+<script src="../audio/audio-engine.js"></script>
+<script src="components/TopHeader.js"></script>
+<script src="components/LibraryRail.js"></script>
+<script src="components/SidebarRight.js"></script>
+<script src="components/TrackItem.js"></script>
+<script src="components/TrackList.js"></script>
+<script src="components/PlayerBar.js"></script>
+<script src="components/HomeRecentView.js"></script>
+<script src="components/AllTracksView.js"></script>
+<script src="components/SearchView.js"></script>
+<script src="components/PlaylistsRankView.js"></script>
+<script src="components/PlaylistDetailView.js"></script>
+<script src="components/QueueView.js"></script>
+<script src="components/LyricsView.js"></script>
+<script src="components/NowPlayingView.js"></script>
+<script src="components/SettingsModal.js"></script>
+<script src="renderer.js"></script>
 </body>
 </html>
