@@ -1,4 +1,4 @@
-# Marola 🌅🌊
+# Marola Player 🌅🌊
 
 Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), construído sob a arquitetura e conceito visual **"Sunset & Sea"**. A faixa em reprodução transforma a cena em um pôr do sol dinâmico: a capa do álbum torna-se o sol no disco de vinil giratório, o oceano abaixo reage ao ritmo e intensidade sonora através de superposição de ondas senoidais em Canvas, e toda a paleta cromática transiciona fluidamente com interpolação linear (lerp) a cada nova faixa.
 
@@ -51,17 +51,15 @@ Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), c
   - Gerenciamento dinâmico de fila com remoção granular e contagem de tempo restante.
   - Modos: Sequencial, Repetir Lista (`repeat-all`), Repetir Faixa (`repeat-one`) e Aleatório (`shuffle` sem repetições imediatas).
 
-- **Extração de Metadados & Letras:**
-  - Suporte a `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.opus`, `.aac` via `music-metadata`.
-  - Capas de álbuns embutidas decodificadas e exibidas diretamente.
+- **🎵 Formatos de Áudio Suportados:**
+  O Marola suporta reprodução nativa offline e extração de metadados para:
+  - **FLAC** (`.flac`) - Áudio Lossless de alta fidelidade
+  - **MP3** (`.mp3`) - Tags ID3v1, ID3v2.3 e ID3v2.4
+  - **Opus** (`.opus`) - Codec moderno de alta eficiência de compressão
+  - **WAV** (`.wav`) - Áudio PCM sem compressão
+  - **M4A / AAC** (`.m4a`, `.aac`) - Contêineres padrão MP4 com capas embutidas
+  - **OGG** (`.ogg`) - Contêineres Ogg Vorbis
   - Sincronização de letras em tempo real via arquivos `.lrc` ou tags embutidas (USLT/SYLT).
-
-- **Ciclo de Vida da Indexação de Diretórios Locais:**
-  - **Bloqueio Reentrante & Ergonomia:** Ao acionar o botão de adição de pastas, a interface entra em estado assíncrono (`aria-busy="true"`, "Aguardando pasta...") prevenindo diálogos concorrentes.
-  - **Tratamento de Cancelamento & Permissões:** Tratamento de cancelamento sem erros no console e captura estruturada de falhas de permissão (`EACCES`).
-  - **Processamento em Lotes (Chunks):** Varredura recursiva de arquivos (`.mp3`, `.flac`, `.opus`, `.ogg`, `.wav`, `.m4a`) com decodificação de tags e capas em lotes assíncronos de 16 faixas, prevenindo travamento do loop de eventos.
-  - **Eventos de Progresso e Conclusão:** Emissão via IPC (`onScanProgress`, `onScanCompleted`) atualizando a barra de progresso em tempo real.
-  - **Desbloqueio Reativo do Modal:** Fechamento automático e animado do modal de boas-vindas com transição suave de opacidade e escala, repovoamento instantâneo da coleção e ativação imediata da primeira faixa.
 
 - **Cinemática & Diretrizes do Indicador Fluido de Abas (.tab-indicator):**
   - **Trilho Desacoplado Vetorial:** Indicador único independente montado no contêiner `.tabs`, eliminando pseudo-elementos estáticos `::after`.
@@ -129,4 +127,4 @@ Para gerar arquivos de áudio de teste com senoides (.wav) e letras sincronizada
 ```bash
 node test/generate_sample_audio.js
 ```
-Os arquivos serão gerados na pasta `sample_music/` e podem ser abertos diretamente no player clicando em "Vitrola" (Adicionar Pasta).
+Os arquivos serão gerados na pasta `sample_music/` e podem ser indexados diretamente no player acessando **Ajustes ⚙️ > Gerenciar Pastas de Música**.
