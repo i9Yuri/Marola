@@ -19,6 +19,7 @@ function createWindow() {
     backgroundColor: '#090d16',
     title: 'Marola - Player de Música Offline',
     autoHideMenuBar: true,
+    frame: false, // Frameless nativo para eliminar barra dupla no Linux
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -261,8 +262,11 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getArtistStats', (_, artist) => storage.getArtistStats(artist));
 
   // Playlists
-  ipcMain.handle('db:getPlaylists', (_, sortBy) => storage.getPlaylists(sortBy));
+  ipcMain.handle('db:getPlaylists', (_, sortBy) => storage.getPlaylists(sortBy, true));
   ipcMain.handle('db:getPlaylistTracks', (_, playlistId) => storage.getPlaylistTracks(playlistId));
+  ipcMain.handle('db:getTop100Playlist', () => storage.getTop100Playlist());
+  ipcMain.handle('db:getAlbumsCatalog', () => storage.getAlbumsCatalog());
+  ipcMain.handle('db:getArtistsCatalog', () => storage.getArtistsCatalog());
   ipcMain.handle('db:createPlaylist', (_, name) => storage.createPlaylist(name));
   ipcMain.handle('db:renamePlaylist', (_, id, newName) => storage.renamePlaylist(id, newName));
   ipcMain.handle('db:deletePlaylist', (_, id) => storage.deletePlaylist(id));
@@ -371,4 +375,15 @@ function registerIpcHandlers() {
     }
   });
   ipcMain.handle('window:close', () => mainWindow?.close());
+  ipcMain.handle('window:isMaximized', () => !!mainWindow?.isMaximized());
+  ipcMain.handle('window:action', (_, action) => {
+    if (!mainWindow) return;
+    if (action === 'minimize') mainWindow.minimize();
+    else if (action === 'maximize') {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+    } else if (action === 'close') {
+      mainWindow.close();
+    }
+  });
 }

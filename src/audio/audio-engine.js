@@ -18,6 +18,7 @@ class AudioEngine {
     this.volume = 0.8;
     this.isPlaying = false;
     this.sinkId = 'default';
+    this.eqFilters = [];
 
     this.listeners = {
       timeupdate: [],
@@ -73,7 +74,36 @@ class AudioEngine {
     this.audioCtx = new AudioContextClass();
     this.masterGain = this.audioCtx.createGain();
     this.masterGain.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
-    this.masterGain.connect(this.audioCtx.destination);
+
+    // Encadeamento de 10 BiquadFilterNode para equalizador acústico
+    const EQ_CONFIGS = [
+      { freq: 40, type: 'lowshelf' },
+      { freq: 62, type: 'peaking', q: 1.4 },
+      { freq: 125, type: 'peaking', q: 1.4 },
+      { freq: 250, type: 'peaking', q: 1.4 },
+      { freq: 500, type: 'peaking', q: 1.4 },
+      { freq: 1000, type: 'peaking', q: 1.4 },
+      { freq: 2000, type: 'peaking', q: 1.4 },
+      { freq: 4000, type: 'peaking', q: 1.4 },
+      { freq: 8000, type: 'peaking', q: 1.4 },
+      { freq: 16000, type: 'highshelf' }
+    ];
+
+    this.eqFilters = EQ_CONFIGS.map(cfg => {
+      const filter = this.audioCtx.createBiquadFilter();
+      filter.type = cfg.type;
+      filter.frequency.setValueAtTime(cfg.freq, this.audioCtx.currentTime);
+      if (cfg.q) filter.Q.setValueAtTime(cfg.q, this.audioCtx.currentTime);
+      filter.gain.setValueAtTime(0, this.audioCtx.currentTime);
+      return filter;
+    });
+
+    let prevNode = this.masterGain;
+    for (const filter of this.eqFilters) {
+      prevNode.connect(filter);
+      prevNode = filter;
+    }
+    prevNode.connect(this.audioCtx.destination);
 
     if (this.sinkId && this.sinkId !== 'default' && typeof this.audioCtx.setSinkId === 'function') {
       this.audioCtx.setSinkId(this.sinkId).catch(() => {});
@@ -163,6 +193,31 @@ class AudioEngine {
 
     this.emit('sinkChange', { sinkId: this.sinkId });
     return applied;
+  }
+
+  /**
+   * Updates gain of a specific equalizer frequency band using exponential time constant
+   * to guarantee smooth, pop-free and click-free audio modulation.
+   */
+  updateEqualizerGain(bandIndex, gainDb) {
+    if (!this.eqFilters || !this.eqFilters[bandIndex] || !this.audioCtx) return;
+    const clamped = Math.max(-12, Math.min(12, gainDb));
+    this.eqFilters[bandIndex].gain.setTargetAtTime(clamped, this.audioCtx.currentTime, 0.05);
+  }
+
+  /**
+   * Applies an acoustic equalizer preset across all 10 frequency bands.
+   */
+  setEqualizerPreset(presetName) {
+    const presets = {
+      'Plano':            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      'Graves Fortes':    [8, 7, 5, 3, 1, 0, 0, 0, 0, 0],
+      'Eletrônica / Pop': [6, 5, 2, -1, -2, -1, 2, 4, 6, 7],
+      'Rock':             [4, 3, 4, 3, -1, 1, 3, 5, 4, 3],
+      'Acústico / Voz':   [-3, -2, 0, 2, 4, 5, 4, 2, 1, 0]
+    };
+    const gains = presets[presetName] || presets['Plano'];
+    gains.forEach((gain, i) => this.updateEqualizerGain(i, gain));
   }
 
   getActiveDeck() {
@@ -430,6 +485,10 @@ class AudioEngine {
     // Normal end without crossfade or single track ended
     const active = this.getActiveDeck();
     if (endedDeckId === active.id) {
+      if (!active.halfLogged && active.track && this.storageManager) {
+        active.halfLogged = true;
+        this.storageManager.incrementPlayCount(active.track.filePath);
+      }
       if (this.queueManager) {
         const next = this.queueManager.advanceNext();
         if (next) {

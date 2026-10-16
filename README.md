@@ -6,20 +6,38 @@ Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), c
 
 ## 🚀 Funcionalidades Principais
 
-- **Conceito Visual "Sunset & Sea":**
+- **Conceito Visual "Sunset & Sea" & Performance 60 FPS:**
   - **Cena Central Imersiva:** Pôr do sol dinâmico com iluminação harmônica (`--sky0`, `--sky1`, `--sky2`, `--sun-rgb`, `--sea0`, `--sea1`, `--accent`).
-  - **Disco de Vinil / Sol:** Capa da faixa embutida ou gerador procedural vetorial de gradientes (anéis, pontos, diagonais, listras, cônico) com ranhuras táteis e pulso sincronizado com a energia da música.
+  - **Disco de Vinil / Sol:** Capa da faixa embutida (com cache de Blob URLs e revogação sem vazamentos de memória) ou gerador procedural vetorial de gradientes (anéis, pontos, diagonais, listras, cônico) com ranhuras táteis e pulso sincronizado com a energia da música.
   - **Oceano em Canvas 2D (`#sea`):** Algoritmo de superposição de ondas senoidais multi-camadas com reflexo pontilhado da luz solar na água ponderado por BPM e ritmo, com suporte nativo a `prefers-reduced-motion`.
   - **Seekbar Ondular em Canvas 2D (`#seekc`):** Linha tracejada e onda senoidal modulada pela posição atual com playhead circular e tooltip de minutagem em tempo real.
   - **Doca Flutuante de Controles:** Barra de comando com efeito `backdrop-filter: blur(16px) saturate(1.25)`.
-  - **Equalizador Gráfico de 10 Bandas & Perfis Acústicos:** Curva cúbica Bézier de 32Hz a 16kHz, ajuste de ganhos de -12dB a +12dB via arraste e teclado, perfis acústicos convencionais (Plano, Graves Fortes, Eletrônica / Pop, Rock, Acústico / Voz) e nós BiquadFilterNode reais no pipeline de áudio.
-- **Navegação Completa da Barra Lateral:**
-  - **Músicas:** Lista tabular completa com busca instantânea, colunas ordenáveis e reprodução direta.
-  - **Álbuns:** Grade visual de álbuns com capas em alta definição, contagem de faixas e ano de lançamento.
-  - **Artistas:** Visualização discográfica alfabética com agregação e ranqueamento de obras.
-  - **Playlists:** Gerenciador completo de listas de reprodução com criação, renomeação, exclusão e reordenação.
-  - **Vitrola:** Gaveta de escaneamento de biblioteca local com barra de progresso em tempo real e histórico de importações recentes.
-  - **Ajustes:** Gerenciador avançado de diretórios de música locais (adicionar, remover da biblioteca sem deletar arquivos físicos, reindexar), temas Claro/Escuro, seletor de paletas de acento (Pôr do Sol, Âmbar, Aurora, Oceano, Esmeralda, Lavanda) e tempo de crossfade.
+  - **Virtualização Nativa da Coleção (60 FPS):** Virtual scrolling de alta fidelidade para centenas ou milhares de músicas com estrito isolamento de layout (`contain: strict; content-visibility: auto;`), mantendo a taxa de quadros estável em 60 FPS mesmo durante navegação intensa na biblioteca.
+  - **Equalizador Gráfico de 10 Bandas & Perfis Acústicos:** Curva cúbica Bézier de 40Hz a 16kHz, ajuste de ganhos de -12dB a +12dB via arraste e teclado, perfis acústicos convencionais (Plano, Graves Fortes, Eletrônica / Pop, Rock, Acústico / Voz) e encadeamento em série de nós `BiquadFilterNode` reais no pipeline de áudio com interpolação exponencial livre de estalos.
+
+- **Janela Frameless & Integração Desktop Linux:**
+  - **Modo Frameless Nativo (`frame: false`):** Eliminação de barras de janela duplas em desktops Linux (KDE Plasma, GNOME, etc.).
+  - **Titlebar Totalmente Arrastável:** Suporte a `-webkit-app-region: drag` com exclusão precisa (`no-drag`) para botões, busca e atalhos.
+  - **Ações de Janela via IPC:** Minimizar, maximizar/restaurar e fechar integrados diretamente à janela do Electron.
+
+- **Navegação Desacoplada & Catálogos no Palco Central:**
+  - **Palco Central Dedicado (`#catalog-stage`):** Visões de Álbuns, Artistas e Playlists são renderizadas no espaço central substituindo temporariamente a cena do pôr do sol, preservando o painel lateral da direita (`.panel`) intacto para Músicas, Fila e Equalizador.
+  - **Botão Voltar ao Player:** Retorno imediato à cena do pôr do sol pelo cabeçalho do catálogo ou ao tocar qualquer faixa.
+  - **Playlist do Sistema "As 100 Mais Tocadas":** Playlist nativa imutável com ordenação por contagem de execuções, exibição de badges ordinais (1º a 100º) e registro de reprodução com limiar de 50%.
+
+- **Gerenciador de Pastas Unificado em Ajustes:**
+  - **Gestão Centralizada:** Adição, remoção e reindexação de diretórios de música locais unificados no modal de Ajustes.
+  - **Contagem de Faixas Precisa:** Cálculo em tempo real do total de músicas por pasta via correspondência de prefixo de caminhos normalizados.
+  - **Fechamento Ergonômico de Modais:** Fechamento suave com animação fade/scale ao clicar fora do cartão (backdrop) ou pressionar <kbd>Esc</kbd>.
+
+- **Seletor Real de Dispositivos de Saída de Áudio (Audio Output Sink):**
+  - Dropdown dinâmico integrado à aba de Som enumerando dispositivos reais de saída (`audiooutput`).
+  - Suporte completo a `setSinkId()` e ouvinte automático de conexões de hardware (`devicechange`).
+
+- **Temas Expandidos & Matiz Ambiental:**
+  - **Tema AMOLED Puro (`[data-theme="amoled"]`):** Fundo preto absoluto (`#000000`) para telas OLED.
+  - **Matiz Ambiental Dinâmica:** Superfícies escuras harmonizadas suavemente com a cor de acento em reprodução.
+  - **Seletor de Cores de Acento:** Botão circular com gradiente cônico dinâmico (zero emojis) como primeira opção, além de paletas fixas.
 
 - **Motor de Áudio Dual-Deck (Deck A / Deck B):**
   - Transição contínua entre faixas via Web Audio API.

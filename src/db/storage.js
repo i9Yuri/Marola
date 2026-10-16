@@ -404,6 +404,7 @@ class StorageManager {
   }
 
   renamePlaylist(id, newName) {
+    if (id === 'system_top_100') return null;
     const pl = this.data.playlists.find(p => p.id === id);
     if (!pl) return null;
     pl.name = newName?.trim() || pl.name;
@@ -412,6 +413,7 @@ class StorageManager {
   }
 
   deletePlaylist(id) {
+    if (id === 'system_top_100') return false;
     const index = this.data.playlists.findIndex(p => p.id === id);
     if (index === -1) return false;
     this.data.playlists.splice(index, 1);
@@ -421,6 +423,7 @@ class StorageManager {
   }
 
   addTrackToPlaylist(playlistId, trackFilePath) {
+    if (playlistId === 'system_top_100') return null;
     const pl = this.data.playlists.find(p => p.id === playlistId);
     if (!pl) return null;
     if (!pl.trackIds.includes(trackFilePath)) {
@@ -431,6 +434,7 @@ class StorageManager {
   }
 
   removeTrackFromPlaylist(playlistId, trackIndex) {
+    if (playlistId === 'system_top_100') return null;
     const pl = this.data.playlists.find(p => p.id === playlistId);
     if (!pl) return null;
     if (trackIndex >= 0 && trackIndex < pl.trackIds.length) {
@@ -441,6 +445,7 @@ class StorageManager {
   }
 
   reorderPlaylistTracks(playlistId, newTrackIds) {
+    if (playlistId === 'system_top_100') return null;
     const pl = this.data.playlists.find(p => p.id === playlistId);
     if (!pl || !Array.isArray(newTrackIds)) return null;
     pl.trackIds = newTrackIds;
@@ -450,12 +455,36 @@ class StorageManager {
 
   reorderPlaylists(newOrderIds) {
     if (!Array.isArray(newOrderIds)) return;
-    this.data.playlistOrder = newOrderIds;
+    this.data.playlistOrder = newOrderIds.filter(id => id !== 'system_top_100');
     this.data.settings.playlistSortBy = 'manual';
     this.save();
   }
 
-  getPlaylists(sortBy = null) {
+  /**
+   * Returns the dynamic Top 100 Most Played tracks ordered by play_count DESC, last_played_at DESC.
+   */
+  getTop100Playlist() {
+    const tracks = this.getAllTracks({ activeOnly: true });
+    return tracks
+      .slice()
+      .sort((a, b) => {
+        const countA = a.play_count || 0;
+        const countB = b.play_count || 0;
+        if (countB !== countA) return countB - countA;
+        return (b.last_played_at || 0) - (a.last_played_at || 0);
+      })
+      .slice(0, 100);
+  }
+
+  getAlbumsCatalog(options = { activeOnly: true }) {
+    return this.getTopAlbumsByTrackCount(500, options);
+  }
+
+  getArtistsCatalog(options = { activeOnly: true }) {
+    return this.getTopArtistsByTrackCount(500, options);
+  }
+
+  getPlaylists(sortBy = null, includeSystem = false) {
     const mode = sortBy || this.data.settings.playlistSortBy || 'created';
     const list = [...this.data.playlists];
 
@@ -472,10 +501,26 @@ class StorageManager {
       });
     }
 
+    if (includeSystem) {
+      const top100Tracks = this.getTop100Playlist();
+      const systemPlaylist = {
+        id: 'system_top_100',
+        name: 'As 100 Mais Tocadas',
+        isSystem: true,
+        createdAt: 0,
+        trackCount: top100Tracks.length,
+        trackIds: top100Tracks.map(t => t.id || t.filePath)
+      };
+      return [systemPlaylist, ...list];
+    }
+
     return list;
   }
 
   getPlaylistTracks(playlistId) {
+    if (playlistId === 'system_top_100') {
+      return this.getTop100Playlist();
+    }
     const pl = this.data.playlists.find(p => p.id === playlistId);
     if (!pl) return [];
     return pl.trackIds.map(id => this.data.tracks[id]).filter(Boolean);
@@ -523,7 +568,21 @@ class StorageManager {
   // --- Music Folders (Granular Media Folders Manager) ---
 
   getMusicFolders() {
-    return [...(this.data.settings.musicFolders || [])];
+    const folders = this.data.settings.musicFolders || [];
+    const allTracks = Object.values(this.data.tracks || {});
+    return folders.map(f => {
+      let folderPrefix = path.normalize(f.path);
+      if (!folderPrefix.endsWith(path.sep)) folderPrefix += path.sep;
+      const count = allTracks.filter(t => {
+        if (!t?.filePath) return false;
+        const normTrack = path.normalize(t.filePath);
+        return normTrack.startsWith(folderPrefix) || normTrack === path.normalize(f.path);
+      }).length;
+      return {
+        ...f,
+        trackCount: count
+      };
+    });
   }
 
   addMusicFolder(folderPath) {

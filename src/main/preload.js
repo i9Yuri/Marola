@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('api', {
   // Playlists
   getPlaylists: (sortBy) => ipcRenderer.invoke('db:getPlaylists', sortBy),
   getPlaylistTracks: (playlistId) => ipcRenderer.invoke('db:getPlaylistTracks', playlistId),
+  getTop100Playlist: () => ipcRenderer.invoke('db:getTop100Playlist'),
+  getAlbumsCatalog: () => ipcRenderer.invoke('db:getAlbumsCatalog'),
+  getArtistsCatalog: () => ipcRenderer.invoke('db:getArtistsCatalog'),
   createPlaylist: (name) => ipcRenderer.invoke('db:createPlaylist', name),
   renamePlaylist: (id, newName) => ipcRenderer.invoke('db:renamePlaylist', id, newName),
   deletePlaylist: (id) => ipcRenderer.invoke('db:deletePlaylist', id),
@@ -71,5 +74,7 @@ contextBridge.exposeInMainWorld('api', {
   // Window Controls
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
-  closeWindow: () => ipcRenderer.invoke('window:close')
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  windowAction: (action) => ipcRenderer.invoke('window:action', action)
 });

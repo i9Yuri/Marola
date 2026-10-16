@@ -90,11 +90,34 @@
 
   const currentTrack = () => (S.i >= 0 && S.i < S.tracks.length ? S.tracks[S.i] : null);
 
+  /* ---------- Cache de Blob URLs para Capas de Áudio ---------- */
+  const blobUrlCache = new Map();
+  function clearBlobCache() {
+    for (const url of blobUrlCache.values()) {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }
+    blobUrlCache.clear();
+  }
+  window.addEventListener('beforeunload', clearBlobCache);
+
   /* ---------- Gerador de Capas Abstratas Procedurais ---------- */
   function coverBg(tr) {
     if (!tr) return 'linear-gradient(135deg, #14293B, #07111A)';
     if (tr.coverDataUrl) {
       return `url("${tr.coverDataUrl}") center / cover no-repeat`;
+    }
+    if (tr.picture && tr.picture.data) {
+      const cacheKey = tr.filePath || tr.id || tr.title;
+      if (!blobUrlCache.has(cacheKey)) {
+        try {
+          const blob = new Blob([new Uint8Array(tr.picture.data)], { type: tr.picture.format || 'image/jpeg' });
+          blobUrlCache.set(cacheKey, URL.createObjectURL(blob));
+        } catch (e) {
+          console.warn('[Marola] Erro ao criar blob de capa:', e);
+        }
+      }
+      const cached = blobUrlCache.get(cacheKey);
+      if (cached) return `url("${cached}") center / cover no-repeat`;
     }
     const pal = tr.paletteConfig || hashPalette((tr.artist || '') + (tr.album || '') + (tr.title || ''));
     const [s0, s1, s2] = pal.sky;
@@ -393,7 +416,9 @@
     S.eq.bands[bandIndex].gain = clamp(gainDb, -12, 12);
     S.eq.preset = null;
 
-    if (eqFilters[bandIndex] && window.audioEngine?.audioCtx) {
+    if (window.audioEngine?.updateEqualizerGain) {
+      window.audioEngine.updateEqualizerGain(bandIndex, S.eq.enabled ? S.eq.bands[bandIndex].gain : 0);
+    } else if (eqFilters[bandIndex] && window.audioEngine?.audioCtx) {
       eqFilters[bandIndex].gain.setTargetAtTime(
         S.eq.enabled ? S.eq.bands[bandIndex].gain : 0,
         window.audioEngine.audioCtx.currentTime,
@@ -409,14 +434,21 @@
     S.eq.preset = presetName;
     S.eq.bands.forEach((band, idx) => {
       band.gain = presetGains[idx];
-      if (eqFilters[idx] && window.audioEngine?.audioCtx) {
-        eqFilters[idx].gain.setTargetAtTime(
-          S.eq.enabled ? band.gain : 0,
-          window.audioEngine.audioCtx.currentTime,
-          0.02
-        );
-      }
     });
+
+    if (window.audioEngine?.setEqualizerPreset) {
+      window.audioEngine.setEqualizerPreset(presetName);
+    } else {
+      S.eq.bands.forEach((band, idx) => {
+        if (eqFilters[idx] && window.audioEngine?.audioCtx) {
+          eqFilters[idx].gain.setTargetAtTime(
+            S.eq.enabled ? band.gain : 0,
+            window.audioEngine.audioCtx.currentTime,
+            0.02
+          );
+        }
+      });
+    }
     renderEQ();
   }
 
@@ -630,10 +662,11 @@
     }).join('');
   }
 
-  function trackRowHTML(idx, extra = '') {
+  function trackRowHTML(idx, extra = '', rankNum = null) {
     const tr = S.tracks[idx];
     if (!tr) return '';
     const now = idx === S.i;
+    const rankBadge = rankNum ? `<span class="top100-rank-badge">${rankNum}º</span>` : '';
     return `
       <button class="row" data-i="${idx}" ${now ? 'aria-current="true"' : ''}>
         <span class="cv" style="background:${coverBg(tr)}">
@@ -641,12 +674,76 @@
           <span class="ov eqb"><i></i><i></i><i></i></span>
         </span>
         <span class="tx">
-          <b>${esc(tr.title || 'Sem título')}</b>
+          <b>${rankBadge}${esc(tr.title || 'Sem título')}</b>
           <small>${esc(tr.artist || 'Artista desconhecido')}, ${esc(tr.album || 'Álbum desconhecido')}</small>
         </span>
         ${extra || `<span class="du">${fmt(tr.duration)}</span>`}
       </button>
     `;
+  }
+
+  /* ---------- Virtualização de Lista Nativa (60 FPS Contínuos) ---------- */
+  const ROW_HEIGHT = 60;
+  const OVERSCAN = 6;
+  let currentFilteredIndices = [];
+  let virtualScrollAttached = false;
+  let lastRenderedRange = { start: -1, end: -1 };
+
+  function renderVirtualListSlice(force = false) {
+    const listEl = $('#list');
+    if (!listEl) return;
+    if (currentFilteredIndices.length === 0) return;
+
+    const scrollTop = listEl.scrollTop || 0;
+    const viewportHeight = listEl.clientHeight || 500;
+    const totalCount = currentFilteredIndices.length;
+    const totalHeight = totalCount * ROW_HEIGHT;
+
+    const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+    const endIndex = Math.min(totalCount, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN);
+
+    if (!force && lastRenderedRange.start === startIndex && lastRenderedRange.end === endIndex) {
+      return;
+    }
+    lastRenderedRange = { start: startIndex, end: endIndex };
+
+    let phantom = listEl.querySelector('.virtual-phantom');
+    let slice = listEl.querySelector('.virtual-slice');
+
+    if (!phantom || !slice) {
+      listEl.innerHTML = `
+        <div class="virtual-phantom" style="height:${totalHeight}px;">
+          <div class="virtual-slice" style="transform:translateY(${startIndex * ROW_HEIGHT}px);"></div>
+        </div>
+      `;
+      phantom = listEl.querySelector('.virtual-phantom');
+      slice = listEl.querySelector('.virtual-slice');
+    } else {
+      phantom.style.height = `${totalHeight}px`;
+      slice.style.transform = `translateY(${startIndex * ROW_HEIGHT}px)`;
+    }
+
+    const visibleIndices = currentFilteredIndices.slice(startIndex, endIndex);
+    slice.innerHTML = visibleIndices.map((idx, pos) => {
+      const rankNum = S.filter === 'top' ? startIndex + pos + 1 : null;
+      return `<div>${trackRowHTML(idx, '', rankNum)}</div>`;
+    }).join('');
+  }
+
+  function setupVirtualScrollListener() {
+    const listEl = $('#list');
+    if (!listEl || virtualScrollAttached) return;
+    virtualScrollAttached = true;
+    let ticking = false;
+    listEl.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          renderVirtualListSlice(false);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
   }
 
   function renderLibraryList() {
@@ -674,12 +771,15 @@
       });
     }
 
+    currentFilteredIndices = filteredIndices;
+
     if (filteredIndices.length === 0) {
+      listEl.classList.remove('virtualized');
       if (S.tracks.length === 0) {
         listEl.innerHTML = `
           <li class="empty">
             <b>Sua biblioteca está vazia</b>
-            Adicione uma pasta de músicas clicando em "Vitrola" na barra lateral.
+            Adicione uma pasta de músicas nos Ajustes.
           </li>
         `;
       } else {
@@ -693,7 +793,9 @@
       return;
     }
 
-    listEl.innerHTML = filteredIndices.map((idx) => `<li>${trackRowHTML(idx)}</li>`).join('');
+    listEl.classList.add('virtualized');
+    setupVirtualScrollListener();
+    renderVirtualListSlice(true);
   }
 
   function renderQueueList() {
@@ -742,7 +844,7 @@
   /* ---------- Renderização de Álbuns, Artistas e Playlists ---------- */
   function renderAlbumsGrid() {
     const grid = $('#albums-grid');
-    const countEl = $('#albums-count');
+    const countEl = $('#catalog-count') || $('#albums-count');
     if (!grid) return;
 
     // Agrupar por álbum
@@ -766,7 +868,7 @@
     if (countEl) countEl.textContent = `${albums.length} ${albums.length === 1 ? 'álbum' : 'álbuns'}`;
 
     if (albums.length === 0) {
-      grid.innerHTML = `<div class="empty"><b>Nenhum álbum encontrado</b>Importe músicas pela Vitrola.</div>`;
+      grid.innerHTML = `<div class="empty"><b>Nenhum álbum encontrado</b>Adicione pastas com músicas nos Ajustes.</div>`;
       return;
     }
 
@@ -787,6 +889,7 @@
           playTrackByIndex(albData.trackIndices[0]);
           S.queue = albData.trackIndices.slice(1);
           renderQueueList();
+          switchNavSection('tracks');
           showToast(`Tocando álbum: ${albName}`);
         }
       });
@@ -795,7 +898,7 @@
 
   function renderArtistsList() {
     const listEl = $('#artists-list');
-    const countEl = $('#artists-count');
+    const countEl = $('#catalog-count') || $('#artists-count');
     if (!listEl) return;
 
     const artistsMap = new Map();
@@ -811,7 +914,7 @@
     if (countEl) countEl.textContent = `${artists.length} ${artists.length === 1 ? 'artista' : 'artistas'}`;
 
     if (artists.length === 0) {
-      listEl.innerHTML = `<li class="empty"><b>Nenhum artista encontrado</b>Importe músicas pela Vitrola.</li>`;
+      listEl.innerHTML = `<li class="empty"><b>Nenhum artista encontrado</b>Adicione pastas com músicas nos Ajustes.</li>`;
       return;
     }
 
@@ -836,6 +939,7 @@
           playTrackByIndex(artData.trackIndices[0]);
           S.queue = artData.trackIndices.slice(1);
           renderQueueList();
+          switchNavSection('tracks');
           showToast(`Tocando artista: ${artName}`);
         }
       });
@@ -844,6 +948,7 @@
 
   async function renderPlaylistsList() {
     const listEl = $('#playlists-list');
+    const countEl = $('#catalog-count');
     if (!listEl) return;
 
     let playlists = [];
@@ -855,23 +960,33 @@
       console.warn('[Marola] Erro ao carregar playlists:', e);
     }
 
+    if (countEl) countEl.textContent = `${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`;
+
     if (!Array.isArray(playlists) || playlists.length === 0) {
-      listEl.innerHTML = `<li class="empty"><b>Nenhuma playlist criada</b>Clique em "+ Nova Playlist" acima.</li>`;
+      listEl.innerHTML = `<li class="empty"><b>Nenhuma playlist criada</b>Clique em "Nova Playlist" acima.</li>`;
       return;
     }
 
-    listEl.innerHTML = playlists.map((pl) => `
-      <li class="playlist-row" data-id="${pl.id}">
-        <div class="playlist-info">
-          <div class="playlist-icon-wrap">${ic('list')}</div>
-          <div>
-            <div class="playlist-name">${esc(pl.name)}</div>
-            <div class="playlist-tracks-count">${pl.trackIds ? pl.trackIds.length : 0} músicas</div>
+    listEl.innerHTML = playlists.map((pl) => {
+      const isTop100 = pl.id === 'system_top_100';
+      return `
+        <li class="playlist-row ${isTop100 ? 'system-playlist' : ''}" data-id="${pl.id}">
+          <div class="playlist-info">
+            <div class="playlist-icon-wrap" style="${isTop100 ? 'background:rgba(var(--accent-rgb),0.18);color:var(--accent)' : ''}">
+              <svg class="i ${isTop100 ? 'f' : ''}"><use href="${isTop100 ? '#i-star' : '#i-list'}"/></svg>
+            </div>
+            <div>
+              <div class="playlist-name">
+                ${esc(pl.name)}
+                ${isTop100 ? '<span class="top100-system-badge">Top 100</span>' : ''}
+              </div>
+              <div class="playlist-tracks-count">${pl.trackIds ? pl.trackIds.length : 0} músicas ${isTop100 ? '• Mais executadas' : ''}</div>
+            </div>
           </div>
-        </div>
-        <button class="round" style="width:28px;height:28px" title="Tocar playlist">${ic('play', 'f')}</button>
-      </li>
-    `).join('');
+          <button class="round" style="width:28px;height:28px" title="Tocar ${esc(pl.name)}"><svg class="i f"><use href="#i-play"/></svg></button>
+        </li>
+      `;
+    }).join('');
 
     listEl.querySelectorAll('.playlist-row').forEach((row) => {
       row.addEventListener('click', async () => {
@@ -885,8 +1000,11 @@
             playTrackByIndex(matchedIndices[0]);
             S.queue = matchedIndices.slice(1);
             renderQueueList();
+            switchNavSection('tracks');
             showToast(`Tocando playlist: ${pl.name}`);
           }
+        } else {
+          showToast(`A playlist "${pl?.name || ''}" está vazia.`);
         }
       });
     });
@@ -1052,7 +1170,7 @@
     indicator.style.width = `${width}px`;
   }
 
-  /* ---------- Troca de Abas do Painel Direito ---------- */
+  /* ---------- Troca de Abas do Painel Direito (secondaryPane) ---------- */
   function showPanelTab(tabName) {
     [['lib', 'pane-lib'], ['q', 'pane-q'], ['eq', 'pane-eq']].forEach(([k, id]) => {
       const isSelected = k === tabName;
@@ -1064,63 +1182,46 @@
         updateTabIndicator(tabEl);
       }
     });
-    // Ocultar painéis secundários de álbuns/artistas/playlists se voltar para lib
-    if (tabName === 'lib') {
-      $('#pane-albums').hidden = true;
-      $('#pane-artists').hidden = true;
-      $('#pane-playlists').hidden = true;
-      $('#pane-lib').hidden = false;
-    }
   }
 
-  /* ---------- Roteamento das Seções do Rail Lateral ---------- */
+  /* ---------- Roteamento das Seções Centrais (primaryView) ---------- */
   function switchNavSection(section) {
     S.currentNav = section;
     $$('.rail .rb').forEach((b) => b.removeAttribute('aria-current'));
 
-    const tabLib = $('#tab-lib');
-    const tabQ = $('#tab-q');
-    const tabEq = $('#tab-eq');
-
-    $('#pane-lib').hidden = true;
-    $('#pane-albums').hidden = true;
-    $('#pane-artists').hidden = true;
-    $('#pane-playlists').hidden = true;
-    $('#pane-q').hidden = true;
-    $('#pane-eq').hidden = true;
-
-    tabLib?.setAttribute('aria-selected', 'false');
-    tabQ?.setAttribute('aria-selected', 'false');
-    tabEq?.setAttribute('aria-selected', 'false');
+    const scene = $('#scene');
+    const catalogStage = $('#catalog-stage');
+    const paneAlbums = $('#pane-albums');
+    const paneArtists = $('#pane-artists');
+    const panePlaylists = $('#pane-playlists');
+    const catalogTitle = $('#catalog-title');
 
     if (section === 'tracks') {
       $('#rail-tracks')?.setAttribute('aria-current', 'page');
-      tabLib?.setAttribute('aria-selected', 'true');
-      tabLib.textContent = 'Músicas';
-      $('#pane-lib').hidden = false;
-      if (tabLib) updateTabIndicator(tabLib);
+      if (scene) scene.style.display = '';
+      if (catalogStage) catalogStage.style.display = 'none';
       renderLibraryList();
-    } else if (section === 'albums') {
-      $('#rail-albums')?.setAttribute('aria-current', 'page');
-      tabLib?.setAttribute('aria-selected', 'true');
-      tabLib.textContent = 'Álbuns';
-      $('#pane-albums').hidden = false;
-      if (tabLib) updateTabIndicator(tabLib);
-      renderAlbumsGrid();
-    } else if (section === 'artists') {
-      $('#rail-artists')?.setAttribute('aria-current', 'page');
-      tabLib?.setAttribute('aria-selected', 'true');
-      tabLib.textContent = 'Artistas';
-      $('#pane-artists').hidden = false;
-      if (tabLib) updateTabIndicator(tabLib);
-      renderArtistsList();
-    } else if (section === 'playlists') {
-      $('#rail-playlists')?.setAttribute('aria-current', 'page');
-      tabLib?.setAttribute('aria-selected', 'true');
-      tabLib.textContent = 'Playlists';
-      $('#pane-playlists').hidden = false;
-      if (tabLib) updateTabIndicator(tabLib);
-      renderPlaylistsList();
+    } else {
+      if (scene) scene.style.display = 'none';
+      if (catalogStage) catalogStage.style.display = 'flex';
+
+      if (paneAlbums) paneAlbums.hidden = section !== 'albums';
+      if (paneArtists) paneArtists.hidden = section !== 'artists';
+      if (panePlaylists) panePlaylists.hidden = section !== 'playlists';
+
+      if (section === 'albums') {
+        $('#rail-albums')?.setAttribute('aria-current', 'page');
+        if (catalogTitle) catalogTitle.textContent = 'Álbuns';
+        renderAlbumsGrid();
+      } else if (section === 'artists') {
+        $('#rail-artists')?.setAttribute('aria-current', 'page');
+        if (catalogTitle) catalogTitle.textContent = 'Artistas';
+        renderArtistsList();
+      } else if (section === 'playlists') {
+        $('#rail-playlists')?.setAttribute('aria-current', 'page');
+        if (catalogTitle) catalogTitle.textContent = 'Playlists';
+        renderPlaylistsList();
+      }
     }
   }
 
@@ -1189,20 +1290,26 @@
     bindFolderEvents(vitrolaList);
   }
 
-  /* ---------- Desbloqueio e Transição do Modal Vazio ---------- */
-  function dismissEmptyStateModal() {
-    const modal = $('#empty-welcome');
-    if (!modal) return;
+  /* ---------- Fechamento Suave de Modais com Transição ---------- */
+  function closeModal(modal) {
+    if (!modal || modal.style.display === 'none') return;
     modal.classList.add('closing');
     setTimeout(() => {
       modal.style.display = 'none';
       modal.classList.remove('closing');
-      const msg = $('#welcome-msg');
-      if (msg) {
-        msg.hidden = true;
-        msg.textContent = '';
-      }
-    }, 280);
+    }, 220);
+  }
+
+  /* ---------- Desbloqueio e Transição do Modal Vazio ---------- */
+  function dismissEmptyStateModal() {
+    const modal = $('#empty-welcome');
+    if (!modal) return;
+    closeModal(modal);
+    const msg = $('#welcome-msg');
+    if (msg) {
+      msg.hidden = true;
+      msg.textContent = '';
+    }
   }
 
   /* ---------- Recarregamento Reativo Total da Biblioteca ---------- */
@@ -1368,7 +1475,9 @@
   /* ---------- Temas e Cores de Acento ---------- */
   function setThemeMode(mode) {
     S.themeMode = mode;
-    if (mode === 'light') {
+    if (mode === 'amoled') {
+      root.setAttribute('data-theme', 'amoled');
+    } else if (mode === 'light') {
       root.setAttribute('data-theme', 'light');
     } else if (mode === 'dark') {
       root.setAttribute('data-theme', 'dark');
@@ -1379,6 +1488,19 @@
     $$('.theme-mode-btn').forEach((b) => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    applyEnvironmentalTint();
+  }
+
+  function applyEnvironmentalTint() {
+    if (S.themeMode === 'light') return;
+    const ac = S.accentMode === 'dynamic' ? currentColors.accent : (S.accentMode?.startsWith('#') ? hex(S.accentMode) : currentColors.accent);
+    if (!ac) return;
+    if (S.themeMode === 'amoled') {
+      root.style.setProperty('--surface', `rgb(${Math.round(ac[0] * 0.04)}, ${Math.round(ac[1] * 0.04)}, ${Math.round(ac[2] * 0.04)})`);
+      root.style.setProperty('--raised', `rgb(${Math.round(ac[0] * 0.07)}, ${Math.round(ac[1] * 0.07)}, ${Math.round(ac[2] * 0.07)})`);
+    } else {
+      root.style.setProperty('--desk', `rgb(${Math.round(15 + ac[0] * 0.02)}, ${Math.round(26 + ac[1] * 0.02)}, ${Math.round(34 + ac[2] * 0.02)})`);
+    }
   }
 
   function setAccentColor(colorHex) {
@@ -1395,6 +1517,7 @@
       root.style.setProperty('--accent-rgb', css(rgbArr));
       root.style.setProperty('--accent-hover', colorHex);
     }
+    applyEnvironmentalTint();
   }
 
   function setCrossfadeDuration(seconds) {
@@ -1497,6 +1620,88 @@
   }
 
   let isDraggingSeek = false;
+
+  /* ---------- Seletor de Saída de Áudio Nativo (WebAudio / setSinkId) ---------- */
+  async function refreshAudioSinks() {
+    const menu = $('#sink-menu');
+    const label = $('#current-sink-label');
+    if (!menu) return;
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
+      const currentSinkId = window.audioEngine?.sinkId || 'default';
+
+      let html = `
+        <button class="sink-option ${currentSinkId === 'default' ? 'active' : ''}" data-sink="default" role="option">
+          <span>Padrão do Sistema</span>
+          ${currentSinkId === 'default' ? ic('check') : ''}
+        </button>
+      `;
+
+      audioOutputs.forEach((dev, idx) => {
+        if (dev.deviceId === 'default') return;
+        const isSel = dev.deviceId === currentSinkId;
+        const devName = dev.label || `Saída de Áudio ${idx + 1}`;
+        html += `
+          <button class="sink-option ${isSel ? 'active' : ''}" data-sink="${esc(dev.deviceId)}" role="option">
+            <span title="${esc(devName)}">${esc(devName)}</span>
+            ${isSel ? ic('check') : ''}
+          </button>
+        `;
+      });
+
+      menu.innerHTML = html;
+
+      const currentDev = audioOutputs.find((d) => d.deviceId === currentSinkId);
+      if (label) {
+        label.textContent = currentDev?.label || (currentSinkId === 'default' ? 'Alto-falantes do sistema' : 'Dispositivo de Áudio');
+      }
+
+      menu.querySelectorAll('.sink-option').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const sinkId = btn.dataset.sink;
+          if (window.audioEngine) {
+            await window.audioEngine.setSinkId(sinkId);
+            await refreshAudioSinks();
+            menu.hidden = true;
+            $('#out-sink')?.setAttribute('aria-expanded', 'false');
+            const newLabel = btn.querySelector('span')?.textContent || 'Dispositivo';
+            showToast(`Saída de áudio: ${newLabel}`);
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('[Marola] Erro ao enumerar saídas de áudio:', err);
+    }
+  }
+
+  function setupAudioSinkDropdown() {
+    const btn = $('#out-sink');
+    const menu = $('#sink-menu');
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = menu.hidden;
+      menu.hidden = !isHidden;
+      btn.setAttribute('aria-expanded', String(isHidden));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#sink-wrap')) {
+        menu.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    if (navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', refreshAudioSinks);
+    }
+
+    refreshAudioSinks();
+  }
 
   /* ---------- Inicialização Principal do App ---------- */
   async function initApp() {
@@ -1765,46 +1970,50 @@
 
     $('#eqpill')?.addEventListener('click', () => showPanelTab('eq'));
 
-    // 10. Navegação do Rail Lateral
+    // 10. Navegação do Rail Lateral e Catálogos Centrais
     $('#rail-tracks')?.addEventListener('click', () => switchNavSection('tracks'));
     $('#rail-albums')?.addEventListener('click', () => switchNavSection('albums'));
     $('#rail-artists')?.addEventListener('click', () => switchNavSection('artists'));
     $('#rail-playlists')?.addEventListener('click', () => switchNavSection('playlists'));
+    $('#btn-back-player')?.addEventListener('click', () => switchNavSection('tracks'));
+
+    // Criar Nova Playlist pelo Catálogo Central
+    $('#btn-create-playlist-pane')?.addEventListener('click', () => {
+      const modal = $('#playlist-picker-modal');
+      if (modal) {
+        modal.style.display = 'grid';
+        $('#new-playlist-input')?.focus();
+      }
+    });
+
+    $('#btn-create-playlist-confirm')?.addEventListener('click', async () => {
+      const input = $('#new-playlist-input');
+      const name = input?.value.trim();
+      if (!name) return;
+      try {
+        if (window.api?.createPlaylist) {
+          await window.api.createPlaylist(name);
+          input.value = '';
+          closeModal($('#playlist-picker-modal'));
+          await renderPlaylistsList();
+          showToast(`Playlist "${name}" criada com sucesso!`);
+        }
+      } catch (err) {
+        console.error('[Marola] Erro ao criar playlist:', err);
+        showToast('Erro ao criar playlist.');
+      }
+    });
+
+    $('#playlist-picker-close')?.addEventListener('click', () => {
+      closeModal($('#playlist-picker-modal'));
+    });
 
     // Botão de boas-vindas quando biblioteca vazia
     $('#btn-welcome-add')?.addEventListener('click', () => {
       handleFolderImport();
     });
 
-    // Vitrola (Modal de Scanner e Importação)
-    $('#rail-import')?.addEventListener('click', () => {
-      const modal = $('#vitrola-modal');
-      if (modal) {
-        modal.style.display = 'grid';
-        renderFoldersUI();
-      }
-    });
-
-    $('#btn-close-vitrola')?.addEventListener('click', () => {
-      const modal = $('#vitrola-modal');
-      if (modal) modal.style.display = 'none';
-    });
-
-    $('#btn-vitrola-add-folder')?.addEventListener('click', () => addMonitoredFolder());
-
-    $('#btn-vitrola-rescan')?.addEventListener('click', async () => {
-      if (window.api?.scanAllFolders) {
-        showProgressUI(true, 'Reescaneando biblioteca completa...', 40);
-        await window.api.scanAllFolders();
-        showProgressUI(true, 'Concluído!', 100);
-        setTimeout(() => showProgressUI(false), 600);
-        await reloadLibrary();
-        await renderFoldersUI();
-        showToast('Biblioteca completa reindexada!');
-      }
-    });
-
-    // Ajustes (Modal Expandido)
+    // Ajustes (Modal Unificado)
     $('#rail-settings')?.addEventListener('click', () => {
       const modal = $('#settings-modal');
       if (modal) {
@@ -1814,19 +2023,30 @@
     });
 
     $('#btn-close-settings')?.addEventListener('click', () => {
-      const modal = $('#settings-modal');
-      if (modal) modal.style.display = 'none';
+      closeModal($('#settings-modal'));
+    });
+
+    // Fechamento de modais ao clicar no backdrop (overlay)
+    $$('.modal-overlay').forEach((overlay) => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          closeModal(overlay);
+        }
+      });
     });
 
     $('#btn-add-music-folder')?.addEventListener('click', () => addMonitoredFolder());
 
     $('#btn-rescan-folders')?.addEventListener('click', async () => {
       if (window.api?.scanAllFolders) {
-        showToast('Reescaneando pastas...');
+        showToast('Reescaneando biblioteca local...');
+        showProgressUI(true, 'Varrendo pastas monitoradas...', 30);
         await window.api.scanAllFolders();
+        showProgressUI(true, 'Concluído!', 100);
+        setTimeout(() => showProgressUI(false), 500);
         await reloadLibrary();
         await renderFoldersUI();
-        showToast('Pastas reescaneadas!');
+        showToast('Pastas reescaneadas com sucesso!');
       }
     });
 
@@ -1856,34 +2076,22 @@
       showToast(S.volumeNormalization ? 'Normalização de volume ativada' : 'Normalização de volume desativada');
     });
 
-    // 11. Seletor de Saída de Áudio (#out-sink)
-    $('#out-sink')?.addEventListener('click', async () => {
-      try {
-        if (navigator.mediaDevices?.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
-          if (audioOutputs.length > 0) {
-            const currentSink = audioEngine.sinkId;
-            const curIdx = audioOutputs.findIndex((d) => d.deviceId === currentSink);
-            const nextIdx = (curIdx + 1) % audioOutputs.length;
-            const nextDev = audioOutputs[nextIdx];
-            await audioEngine.setSinkId(nextDev.deviceId);
-            const label = nextDev.label || 'Dispositivo de Áudio';
-            $('#current-sink-label').textContent = label;
-            showToast(`Saída de áudio: ${label}`);
-          } else {
-            showToast('Saída padrão do sistema em uso.');
-          }
-        }
-      } catch (err) {
-        console.warn('[Marola] Erro ao alternar saída de áudio:', err);
-      }
-    });
+    // 11. Seletor de Saída de Áudio Nativo (#out-sink e #sink-menu)
+    setupAudioSinkDropdown();
 
-    // 12. Controles de Janela da Titlebar
-    $('#btn-minimize')?.addEventListener('click', () => window.api?.minimizeWindow?.());
-    $('#btn-maximize')?.addEventListener('click', () => window.api?.maximizeWindow?.());
-    $('#btn-close')?.addEventListener('click', () => window.api?.closeWindow?.());
+    // 12. Controles de Janela da Titlebar (Frameless Window)
+    $('#btn-minimize')?.addEventListener('click', () => {
+      if (window.api?.windowAction) window.api.windowAction('minimize');
+      else window.api?.minimizeWindow?.();
+    });
+    $('#btn-maximize')?.addEventListener('click', () => {
+      if (window.api?.windowAction) window.api.windowAction('maximize');
+      else window.api?.maximizeWindow?.();
+    });
+    $('#btn-close')?.addEventListener('click', () => {
+      if (window.api?.windowAction) window.api.windowAction('close');
+      else window.api?.closeWindow?.();
+    });
 
     // 13. Atalhos Globais de Teclado
     window.addEventListener('keydown', (e) => {
@@ -1901,9 +2109,11 @@
         return;
       }
       if (e.key === 'Escape') {
-        $('#settings-modal').style.display = 'none';
-        $('#vitrola-modal').style.display = 'none';
-        $('#playlist-picker-modal').style.display = 'none';
+        closeModal($('#settings-modal'));
+        closeModal($('#playlist-picker-modal'));
+        if (S.currentNav !== 'tracks') {
+          switchNavSection('tracks');
+        }
         return;
       }
       if (tag === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;

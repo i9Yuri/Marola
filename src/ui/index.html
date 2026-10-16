@@ -85,7 +85,6 @@
         <button class="rb" id="rail-playlists"><svg class="i"><use href="#i-list"/></svg>Playlists</button>
       </div>
       <div class="rail-g">
-        <button class="rb" id="rail-import" title="Vitrola (Importação e Scanner de Mídia)"><svg class="i"><use href="#i-down"/></svg>Vitrola</button>
         <button class="rb" id="rail-settings" title="Ajustes do Player"><svg class="i"><use href="#i-sliders"/></svg>Ajustes</button>
       </div>
     </nav>
@@ -162,7 +161,40 @@
       </div>
     </main>
 
-    <!-- Painel lateral da direita: Músicas, Álbuns, Artistas, Playlists, Fila e Equalizador -->
+    <!-- Palco Central de Catálogo (Álbuns, Artistas, Playlists) -->
+    <section class="catalog-stage" id="catalog-stage" style="display:none">
+      <div class="catalog-header">
+        <button class="btn btn-secondary btn-back-player" id="btn-back-player">
+          <svg class="i"><use href="#i-prev"/></svg> Voltar ao Player
+        </button>
+        <div class="catalog-title-wrap">
+          <h2 id="catalog-title">Coleção</h2>
+          <span class="catalog-count" id="catalog-count">0 itens</span>
+        </div>
+      </div>
+
+      <!-- Visão de Álbuns -->
+      <div class="catalog-view" id="pane-albums" hidden>
+        <div class="albums-grid" id="albums-grid"></div>
+      </div>
+
+      <!-- Visão de Artistas -->
+      <div class="catalog-view" id="pane-artists" hidden>
+        <ul class="artists-grid" id="artists-list"></ul>
+      </div>
+
+      <!-- Visão de Playlists -->
+      <div class="catalog-view" id="pane-playlists" hidden>
+        <div class="catalog-actions-bar">
+          <button class="btn btn-primary" id="btn-create-playlist-pane">
+            <svg class="i"><use href="#i-plus"/></svg> Nova Playlist
+          </button>
+        </div>
+        <ul class="playlists-grid" id="playlists-list"></ul>
+      </div>
+    </section>
+
+    <!-- Painel lateral da direita: Músicas, Fila e Equalizador -->
     <aside class="panel">
       <div class="tabs" role="tablist">
         <div class="tab-indicator" id="tab-indicator" aria-hidden="true"></div>
@@ -175,33 +207,6 @@
       <section class="pane" id="pane-lib" role="tabpanel" aria-labelledby="tab-lib">
         <div class="chips" id="chips" role="group" aria-label="Filtrar coleção"></div>
         <ul class="list" id="list"></ul>
-      </section>
-
-      <!-- Visão de Álbuns -->
-      <section class="pane" id="pane-albums" role="tabpanel" hidden>
-        <div class="sec">
-          <h3>Álbuns</h3>
-          <span id="albums-count">0 álbuns</span>
-        </div>
-        <div class="albums-grid" id="albums-grid"></div>
-      </section>
-
-      <!-- Visão de Artistas -->
-      <section class="pane" id="pane-artists" role="tabpanel" hidden>
-        <div class="sec">
-          <h3>Artistas</h3>
-          <span id="artists-count">0 artistas</span>
-        </div>
-        <ul class="list" id="artists-list"></ul>
-      </section>
-
-      <!-- Visão de Playlists -->
-      <section class="pane" id="pane-playlists" role="tabpanel" hidden>
-        <div class="sec">
-          <h3>Playlists</h3>
-          <button class="link" id="btn-create-playlist-pane"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-plus"/></svg> Nova Playlist</button>
-        </div>
-        <ul class="list" id="playlists-list"></ul>
       </section>
 
       <!-- Aba 2: Fila de Reprodução -->
@@ -235,58 +240,17 @@
           <div class="fqs" id="fqs"></div>
         </div>
         <p class="hint">Arraste os pontos para ajustar o ganho em dB (-12 dB a +12 dB). Com um ponto selecionado, use as setas do teclado para ajuste fino de 1 dB.</p>
-        <button class="out" id="out-sink" aria-label="Selecionar saída de áudio">
-          <svg class="i"><use href="#i-spk"/></svg>
-          <span><small>Saída de áudio</small><strong id="current-sink-label">Alto-falantes do sistema</strong></span>
-          <svg class="i"><use href="#i-chev"/></svg>
-        </button>
+        <div class="sink-selector-wrap" id="sink-wrap">
+          <button class="out sink-dropdown-btn" id="out-sink" aria-haspopup="listbox" aria-expanded="false" aria-label="Selecionar saída de áudio">
+            <svg class="i"><use href="#i-spk"/></svg>
+            <span><small>Saída de áudio</small><strong id="current-sink-label">Alto-falantes do sistema</strong></span>
+            <svg class="i chevron"><use href="#i-down"/></svg>
+          </button>
+          <div class="sink-dropdown-menu" id="sink-menu" role="listbox" hidden></div>
+        </div>
       </section>
     </aside>
 
-  </div>
-</div>
-
-<!-- Modal / Gaveta da Vitrola: Importação e Scanner de Mídia -->
-<div class="modal-overlay" id="vitrola-modal" style="display:none">
-  <div class="modal-card modal-card-lg">
-    <div class="modal-header">
-      <div class="modal-title-wrap">
-        <svg class="i modal-header-icon"><use href="#i-down"/></svg>
-        <h3>Vitrola — Importação & Scanner de Mídia</h3>
-      </div>
-      <button class="round close" id="btn-close-vitrola" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <div class="vitrola-hero">
-        <p>Importe pastas locais de áudio para indexar automaticamente faixas, capas embutidas, metadados e arquivos de letras (.lrc).</p>
-        <div class="folders-actions">
-          <button class="btn btn-primary" id="btn-vitrola-add-folder">
-            <svg class="i"><use href="#i-folder"/></svg>Adicionar Nova Pasta
-          </button>
-          <button class="btn btn-secondary" id="btn-vitrola-rescan">
-            <svg class="i"><use href="#i-refresh"/></svg>Reescanear Biblioteca Completa
-          </button>
-        </div>
-      </div>
-
-      <!-- Barra de progresso de escaneamento em tempo real -->
-      <div class="scanner-progress-box" id="vitrola-progress-box" style="display:none">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" id="vitrola-progress-fill" style="width:0%"></div>
-        </div>
-        <span class="progress-text" id="vitrola-progress-text">Escaneando arquivos de áudio...</span>
-      </div>
-
-      <div class="vitrola-section">
-        <h4>Pastas Monitoradas Atualmente</h4>
-        <ul class="folders-list" id="vitrola-folders-list"></ul>
-      </div>
-
-      <div class="vitrola-section">
-        <h4>Faixas Adicionadas Recentemente</h4>
-        <ul class="recent-imports-list" id="vitrola-recent-list"></ul>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -332,21 +296,22 @@
         <div class="setting-group">
           <label>Modo de Exibição:</label>
           <div class="theme-mode-selector">
-            <button class="theme-mode-btn active" data-mode="dark">Escuro (Padrão)</button>
+            <button class="theme-mode-btn active" data-mode="dark">Escuro</button>
+            <button class="theme-mode-btn" data-mode="amoled">AMOLED Puro</button>
             <button class="theme-mode-btn" data-mode="light">Claro</button>
-            <button class="theme-mode-btn" data-mode="system">Sincronizar com o Sistema</button>
+            <button class="theme-mode-btn" data-mode="system">Sistema</button>
           </div>
         </div>
 
         <div class="setting-group">
           <label>Cor de Destaque (Accent):</label>
           <div class="accent-palette-picker" id="accent-palette-picker">
+            <button class="accent-dot dynamic active" data-accent="dynamic" title="Dinâmico (Cena Solar)" style="background:conic-gradient(from 0deg, #FF7A59, #FF4E9B, #67E3FF, #FFE48A, #FF7A59)"></button>
             <button class="accent-dot" data-accent="#FF79B0" title="Rosa Marola" style="background:#FF79B0"></button>
             <button class="accent-dot" data-accent="#14D1C2" title="Ciano Elétrico" style="background:#14D1C2"></button>
             <button class="accent-dot" data-accent="#FF8C42" title="Laranja Pôr do Sol" style="background:#FF8C42"></button>
             <button class="accent-dot" data-accent="#1ED760" title="Verde Esmeralda" style="background:#1ED760"></button>
             <button class="accent-dot" data-accent="#A855F7" title="Roxo Noturno" style="background:#A855F7"></button>
-            <button class="accent-dot dynamic active" data-accent="dynamic" title="Dinâmico (Adapta à capa)">⚡ Dinâmico</button>
           </div>
         </div>
 

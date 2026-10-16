@@ -45,6 +45,23 @@
   --ink: #FFFFFF;
 }
 
+/* Tema AMOLED Puro */
+[data-theme="amoled"] {
+  --desk: #000000;
+  --bg: #000000;
+  --chrome: #030303;
+  --panel: #050505;
+  --surface: #0a0a0a;
+  --raised: #121212;
+  --line: #181818;
+  --line2: #222222;
+  --text: #F0F4F8;
+  --muted: #9EACB7;
+  --dim: #64748B;
+  --ink: #000000;
+}
+
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -147,6 +164,14 @@ ul {
   background: var(--chrome);
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
+}
+
+.titlebar input,
+.titlebar button,
+.titlebar .round,
+.titlebar a,
+.titlebar kbd {
+  -webkit-app-region: no-drag;
 }
 
 .brand {
@@ -888,10 +913,33 @@ button.pill:hover {
   min-height: 0;
   overflow-y: auto;
   padding: 6px 12px 16px;
+  position: relative;
+  contain: strict;
+  content-visibility: auto;
+}
+
+.list:not(.virtualized) {
   display: grid;
   align-content: start;
   gap: 2px;
 }
+
+.virtual-phantom {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+}
+
+.virtual-slice {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+}
+
 
 .row {
   position: relative;
@@ -1116,6 +1164,109 @@ button.pill:hover {
 
 .qrow .row {
   padding-right: 6px;
+}
+
+/* ---------- Palco Central de Catálogo (Álbuns, Artistas, Playlists) ---------- */
+.catalog-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+
+.catalog-header {
+  height: 60px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: var(--chrome);
+  flex-shrink: 0;
+}
+
+.btn-back-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.catalog-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.catalog-title-wrap h2 {
+  font: 600 20px/1 var(--display);
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.catalog-count {
+  font-size: 13px;
+  color: var(--dim);
+  font-weight: 500;
+}
+
+.catalog-actions-bar {
+  padding: 14px 24px 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.catalog-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.catalog-view[hidden] {
+  display: none !important;
+}
+
+.artists-grid, .playlists-grid {
+  padding: 16px 24px 24px;
+  display: grid;
+  gap: 6px;
+}
+
+.top100-rank-badge {
+  font-family: monospace, var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  margin-right: 8px;
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: center;
+}
+
+.top100-system-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  margin-left: 8px;
 }
 
 /* ---------- Grid de Álbuns ---------- */
@@ -1470,6 +1621,77 @@ button.pill:hover {
   height: 16px;
 }
 
+/* Seletor de Dispositivo de Saída Dropdown */
+.sink-selector-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.sink-dropdown-btn {
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sink-dropdown-btn .chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.sink-dropdown-btn[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.sink-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  padding: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sink-dropdown-menu[hidden] {
+  display: none !important;
+}
+
+.sink-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.sink-option:hover {
+  background: var(--raised);
+}
+
+.sink-option.active {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ---------- Modais & Toasts ---------- */
 .modal-overlay {
   position: fixed;
@@ -1480,6 +1702,13 @@ button.pill:hover {
   place-items: center;
   z-index: 100;
   padding: 20px;
+  opacity: 1;
+  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.modal-overlay.closing {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .modal-card {
@@ -1491,6 +1720,13 @@ button.pill:hover {
   display: grid;
   gap: 18px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  transform: scale(1) translateY(0);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.modal-overlay.closing .modal-card {
+  transform: scale(0.96) translateY(10px);
+  opacity: 0;
 }
 
 .modal-card-lg {
@@ -1644,22 +1880,26 @@ button.pill:hover {
 }
 
 .accent-dot.dynamic {
-  width: auto;
+  width: 26px;
   height: 26px;
-  border-radius: 13px;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--surface);
-  border: 1px solid var(--line2);
-  color: var(--muted);
+  border-radius: 50%;
+  padding: 0;
+  background: conic-gradient(from 0deg, #FF7A59, #FF4E9B, #67E3FF, #FFE48A, #FF7A59);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.accent-dot.dynamic:hover {
+  transform: scale(1.12);
 }
 
 .accent-dot.dynamic.active {
-  background: var(--raised);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: #fff;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(255, 122, 89, 0.4);
 }
+
 
 /* Lista de Pastas */
 .folders-actions {
