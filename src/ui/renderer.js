@@ -85,6 +85,9 @@
     }
   };
 
+  let isLibraryEmpty = true;
+  let currentTabIndex = 0;
+
   const currentTrack = () => (S.i >= 0 && S.i < S.tracks.length ? S.tracks[S.i] : null);
 
   /* ---------- Gerador de Capas Abstratas Procedurais ---------- */
@@ -573,11 +576,15 @@
       $('#fmt').textContent = 'Áudio Local';
       $('#tdur').textContent = '0:00';
       $('#tcur').textContent = '0:00';
-      $('#empty-welcome').style.display = S.tracks.length === 0 ? 'grid' : 'none';
+      isLibraryEmpty = S.tracks.length === 0;
+      const modal = $('#empty-welcome');
+      if (modal) modal.style.display = isLibraryEmpty ? 'grid' : 'none';
       return;
     }
 
-    $('#empty-welcome').style.display = 'none';
+    isLibraryEmpty = false;
+    const modal = $('#empty-welcome');
+    if (modal) modal.style.display = 'none';
     $('#ttl').textContent = trackData.title || 'Faixa Desconhecida';
     $('#by').textContent = trackData.artist || 'Artista Desconhecido';
     $('#alb').textContent = (trackData.album || 'Álbum Desconhecido') + (trackData.year ? `, ${trackData.year}` : '');
@@ -1023,13 +1030,39 @@
     }
   }
 
+  /* ---------- Indicador Desacoplado Fluido com Máscara Ondulada ---------- */
+  function updateTabIndicator(targetTabElement) {
+    const indicator = $('#tab-indicator');
+    const tabsContainer = $('.tabs');
+    if (!indicator || !targetTabElement || !tabsContainer) return;
+
+    const left = targetTabElement.offsetLeft;
+    const width = targetTabElement.offsetWidth;
+    const tabs = Array.from(tabsContainer.querySelectorAll('.tab'));
+    const newIndex = tabs.indexOf(targetTabElement);
+
+    if (newIndex !== -1) {
+      const waveShift = newIndex * 28;
+      indicator.style.setProperty('-webkit-mask-position-x', `${waveShift}px`);
+      indicator.style.setProperty('mask-position-x', `${waveShift}px`);
+      currentTabIndex = newIndex;
+    }
+
+    indicator.style.transform = `translateX(${left}px)`;
+    indicator.style.width = `${width}px`;
+  }
+
   /* ---------- Troca de Abas do Painel Direito ---------- */
   function showPanelTab(tabName) {
     [['lib', 'pane-lib'], ['q', 'pane-q'], ['eq', 'pane-eq']].forEach(([k, id]) => {
       const isSelected = k === tabName;
-      $(`#tab-${k}`)?.setAttribute('aria-selected', String(isSelected));
+      const tabEl = $(`#tab-${k}`);
+      tabEl?.setAttribute('aria-selected', String(isSelected));
       const pane = $(`#${id}`);
       if (pane) pane.hidden = !isSelected;
+      if (isSelected && tabEl) {
+        updateTabIndicator(tabEl);
+      }
     });
     // Ocultar painéis secundários de álbuns/artistas/playlists se voltar para lib
     if (tabName === 'lib') {
@@ -1065,24 +1098,28 @@
       tabLib?.setAttribute('aria-selected', 'true');
       tabLib.textContent = 'Músicas';
       $('#pane-lib').hidden = false;
+      if (tabLib) updateTabIndicator(tabLib);
       renderLibraryList();
     } else if (section === 'albums') {
       $('#rail-albums')?.setAttribute('aria-current', 'page');
       tabLib?.setAttribute('aria-selected', 'true');
       tabLib.textContent = 'Álbuns';
       $('#pane-albums').hidden = false;
+      if (tabLib) updateTabIndicator(tabLib);
       renderAlbumsGrid();
     } else if (section === 'artists') {
       $('#rail-artists')?.setAttribute('aria-current', 'page');
       tabLib?.setAttribute('aria-selected', 'true');
       tabLib.textContent = 'Artistas';
       $('#pane-artists').hidden = false;
+      if (tabLib) updateTabIndicator(tabLib);
       renderArtistsList();
     } else if (section === 'playlists') {
       $('#rail-playlists')?.setAttribute('aria-current', 'page');
       tabLib?.setAttribute('aria-selected', 'true');
       tabLib.textContent = 'Playlists';
       $('#pane-playlists').hidden = false;
+      if (tabLib) updateTabIndicator(tabLib);
       renderPlaylistsList();
     }
   }
@@ -1152,50 +1189,134 @@
     bindFolderEvents(vitrolaList);
   }
 
-  async function addMonitoredFolder() {
-    if (!window.api?.openFolderDialog || !window.api?.scanFolder || !window.api?.parseMetadataBatch) {
-      showToast('API de diálogo de pastas não disponível');
-      return { success: false, tracksImported: 0 };
-    }
+  /* ---------- Desbloqueio e Transição do Modal Vazio ---------- */
+  function dismissEmptyStateModal() {
+    const modal = $('#empty-welcome');
+    if (!modal) return;
+    modal.classList.add('closing');
+    setTimeout(() => {
+      modal.style.display = 'none';
+      modal.classList.remove('closing');
+      const msg = $('#welcome-msg');
+      if (msg) {
+        msg.hidden = true;
+        msg.textContent = '';
+      }
+    }, 280);
+  }
 
-    const folderRes = await window.api.openFolderDialog();
-    if (!folderRes || folderRes.canceled || !folderRes.filePaths?.length) {
-      return { success: false, tracksImported: 0 };
+  /* ---------- Recarregamento Reativo Total da Biblioteca ---------- */
+  async function syncLibraryView() {
+    await reloadLibrary();
+    await renderFoldersUI();
+    if (S.tracks.length > 0) {
+      isLibraryEmpty = false;
+      if (!currentTrack()) {
+        S.i = 0;
+        syncPlayerStateToUI(S.tracks[0], { isPlaying: false });
+      } else {
+        renderAllLists();
+      }
+    } else {
+      isLibraryEmpty = true;
+      const modal = $('#empty-welcome');
+      if (modal) modal.style.display = 'grid';
     }
+    scheduleAnimationWake();
+  }
 
-    const folderPath = folderRes.filePaths[0];
-    showProgressUI(true, 'Escaneando pasta selecionada...', 20);
+  /* ---------- Pipeline de Ingestão de Diretórios Locais ---------- */
+  async function handleFolderImport() {
+    const btn = $('#btn-welcome-add');
+    const btnText = $('#btn-welcome-text');
+    const msg = $('#welcome-msg');
+
+    if (btn) btn.setAttribute('aria-busy', 'true');
+    if (btnText) btnText.textContent = 'Aguardando pasta...';
+    if (msg) {
+      msg.hidden = true;
+      msg.textContent = '';
+    }
 
     try {
-      const audioFiles = await window.api.scanFolder(folderPath);
-      showProgressUI(true, `Indexando ${audioFiles.length} arquivos encontrados...`, 50);
+      let folderRes = null;
+      if (window.api?.selectMusicFolder) {
+        folderRes = await window.api.selectMusicFolder();
+      } else if (window.api?.openFolderDialog) {
+        folderRes = await window.api.openFolderDialog();
+      }
 
-      let importedCount = 0;
-      if (audioFiles.length > 0) {
-        const metaList = await window.api.parseMetadataBatch(audioFiles);
-        if (window.api.upsertTracksBatch) {
-          await window.api.upsertTracksBatch(metaList);
+      if (!folderRes || folderRes.canceled) {
+        if (btn) btn.setAttribute('aria-busy', 'false');
+        if (btnText) btnText.textContent = 'Selecionar Pasta de Músicas';
+        return { success: false, canceled: true, tracksImported: 0 };
+      }
+
+      const folderPath = folderRes.folderPath || (folderRes.filePaths && folderRes.filePaths[0]);
+      if (!folderPath || folderRes.error) {
+        if (btn) btn.setAttribute('aria-busy', 'false');
+        if (btnText) btnText.textContent = 'Selecionar Pasta de Músicas';
+        if (msg) {
+          msg.textContent = folderRes.error || 'Não foi possível acessar a pasta selecionada.';
+          msg.hidden = false;
         }
-        importedCount = metaList.length;
+        return { success: false, error: folderRes.error, tracksImported: 0 };
       }
 
-      if (window.api.addMusicFolder) {
-        await window.api.addMusicFolder(folderPath);
+      if (btnText) btnText.textContent = 'Escaneando músicas...';
+      showProgressUI(true, 'Varrendo arquivos de áudio...', 25);
+
+      let scanResult = null;
+      if (window.api?.scanMusicDirectory) {
+        scanResult = await window.api.scanMusicDirectory(folderPath);
+      } else {
+        const audioFiles = (await window.api?.scanFolder(folderPath)) || [];
+        if (audioFiles.length > 0) {
+          const metaList = await window.api.parseMetadataBatch(audioFiles);
+          if (window.api?.upsertTracksBatch) {
+            await window.api.upsertTracksBatch(metaList);
+          }
+        }
+        if (window.api?.addMusicFolder) {
+          await window.api.addMusicFolder(folderPath);
+        }
+        scanResult = { success: true, count: audioFiles.length };
       }
 
-      showProgressUI(true, 'Concluído!', 100);
-      setTimeout(() => showProgressUI(false), 800);
-
-      await reloadLibrary();
-      await renderFoldersUI();
-      showToast(`Sucesso: ${importedCount} faixas importadas!`);
-      return { success: true, addedPath: folderPath, tracksImported: importedCount };
-    } catch (err) {
-      console.error('[Marola] Erro ao adicionar pasta:', err);
       showProgressUI(false);
-      showToast('Erro ao importar pasta de músicas.');
-      return { success: false, tracksImported: 0 };
+
+      if (!scanResult || !scanResult.success || scanResult.count === 0) {
+        if (btn) btn.setAttribute('aria-busy', 'false');
+        if (btnText) btnText.textContent = 'Selecionar Pasta de Músicas';
+        if (msg) {
+          msg.textContent = scanResult?.error || 'Nenhuma música compatível encontrada nesta pasta.';
+          msg.hidden = false;
+        }
+        return { success: false, error: scanResult?.error || 'Nenhuma faixa encontrada', tracksImported: 0 };
+      }
+
+      isLibraryEmpty = false;
+      if (btn) btn.setAttribute('aria-busy', 'false');
+      if (btnText) btnText.textContent = 'Selecionar Pasta de Músicas';
+      dismissEmptyStateModal();
+      await syncLibraryView();
+      showToast(`Sucesso: ${scanResult.count} faixas adicionadas à biblioteca!`);
+      return { success: true, addedPath: folderPath, tracksImported: scanResult.count };
+    } catch (err) {
+      console.error('[Marola] Erro no pipeline de importação:', err);
+      showProgressUI(false);
+      if (btn) btn.setAttribute('aria-busy', 'false');
+      if (btnText) btnText.textContent = 'Selecionar Pasta de Músicas';
+      if (msg) {
+        msg.textContent = 'Erro ao processar pasta: ' + (err.message || 'Falha inesperada');
+        msg.hidden = false;
+      }
+      return { success: false, error: err.message, tracksImported: 0 };
     }
+  }
+
+  async function addMonitoredFolder() {
+    return handleFolderImport();
   }
 
   async function removeMonitoredFolder(folderIdOrPath) {
@@ -1599,6 +1720,49 @@
       if (tab) showPanelTab(tab.id.slice(4));
     });
 
+    $('.tabs')?.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const tabs = Array.from($$('.tabs .tab'));
+      const currentIdx = tabs.findIndex(t => t === document.activeElement || t.getAttribute('aria-selected') === 'true');
+      if (currentIdx === -1) return;
+      let nextIdx = e.key === 'ArrowRight' ? currentIdx + 1 : currentIdx - 1;
+      if (nextIdx < 0) nextIdx = tabs.length - 1;
+      if (nextIdx >= tabs.length) nextIdx = 0;
+      const nextTab = tabs[nextIdx];
+      if (nextTab) {
+        e.preventDefault();
+        nextTab.focus();
+        showPanelTab(nextTab.id.slice(4));
+      }
+    });
+
+    // ResizeObserver para manter o indicador alinhado ao redimensionar
+    if (typeof ResizeObserver !== 'undefined') {
+      const tabsEl = $('.tabs');
+      if (tabsEl) {
+        const ro = new ResizeObserver(() => {
+          const activeTab = tabsEl.querySelector('.tab[aria-selected="true"]');
+          if (activeTab) updateTabIndicator(activeTab);
+        });
+        ro.observe(tabsEl);
+      }
+    }
+
+    // Ouvintes de progresso de varredura assíncrona
+    if (window.api?.onScanProgress) {
+      window.api.onScanProgress(({ current, total }) => {
+        const pct = Math.round((current / (total || 1)) * 100);
+        showProgressUI(true, `Indexando faixas (${current}/${total})...`, pct);
+      });
+    }
+
+    if (window.api?.onScanCompleted) {
+      window.api.onScanCompleted(({ totalAdded }) => {
+        showProgressUI(true, `Concluído: ${totalAdded} faixas!`, 100);
+        setTimeout(() => showProgressUI(false), 600);
+      });
+    }
+
     $('#eqpill')?.addEventListener('click', () => showPanelTab('eq'));
 
     // 10. Navegação do Rail Lateral
@@ -1609,7 +1773,7 @@
 
     // Botão de boas-vindas quando biblioteca vazia
     $('#btn-welcome-add')?.addEventListener('click', () => {
-      addMonitoredFolder();
+      handleFolderImport();
     });
 
     // Vitrola (Modal de Scanner e Importação)
@@ -1757,6 +1921,12 @@
     resizeCanvases();
     window.addEventListener('resize', resizeCanvases);
 
+    // Inicializar indicador da aba ativa no carregamento
+    const activeTab = $('.tab[aria-selected="true"]');
+    if (activeTab) {
+      setTimeout(() => updateTabIndicator(activeTab), 50);
+    }
+
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         scheduleAnimationWake();
@@ -1792,4 +1962,8 @@
   window.setThemeMode = setThemeMode;
   window.setAccentColor = setAccentColor;
   window.setCrossfadeDuration = setCrossfadeDuration;
+  window.handleFolderImport = handleFolderImport;
+  window.dismissEmptyStateModal = dismissEmptyStateModal;
+  window.updateTabIndicator = updateTabIndicator;
+  window.syncLibraryView = syncLibraryView;
 })();

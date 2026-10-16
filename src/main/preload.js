@@ -49,6 +49,19 @@ contextBridge.exposeInMainWorld('api', {
 
   // Granular Music Folders Manager
   selectMusicFolder: () => ipcRenderer.invoke('dialog:select-music-folder'),
+  scanMusicDirectory: (folderPath) => ipcRenderer.invoke('fs:scanMusicDirectory', folderPath),
+  onScanProgress: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const handler = (_, payload) => callback(payload);
+    ipcRenderer.on('scan:progress', handler);
+    return () => ipcRenderer.removeListener('scan:progress', handler);
+  },
+  onScanCompleted: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const handler = (_, payload) => callback(payload);
+    ipcRenderer.on('scan:completed', handler);
+    return () => ipcRenderer.removeListener('scan:completed', handler);
+  },
   getMusicFolders: () => ipcRenderer.invoke('folders:getAll'),
   addMusicFolder: (folderPath) => ipcRenderer.invoke('folders:add', folderPath),
   removeMusicFolder: (folderId) => ipcRenderer.invoke('folders:remove', folderId),

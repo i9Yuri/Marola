@@ -116,7 +116,7 @@
       </div>
 
       <!-- Card de Boas-Vindas para Biblioteca Vazia -->
-      <div class="empty-welcome-overlay" id="empty-welcome" style="display:none">
+      <div class="empty-welcome-overlay empty-state-modal" id="empty-welcome" style="display:none">
         <div class="empty-welcome-card">
           <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
             <path d="M9 18V6.5l10-2V16"/>
@@ -125,9 +125,10 @@
           </svg>
           <h2>Sua biblioteca está vazia</h2>
           <p>Adicione pastas locais de áudio para carregar suas músicas e dar vida ao pôr do sol.</p>
-          <button class="btn btn-primary btn-welcome" id="btn-welcome-add">
-            <svg class="i"><use href="#i-folder"/></svg>Selecionar Pasta de Músicas
+          <button class="btn btn-primary btn-welcome" id="btn-welcome-add" aria-busy="false">
+            <svg class="i"><use href="#i-folder"/></svg><span id="btn-welcome-text">Selecionar Pasta de Músicas</span>
           </button>
+          <p class="welcome-warning" id="welcome-msg" hidden></p>
         </div>
       </div>
 
@@ -164,6 +165,7 @@
     <!-- Painel lateral da direita: Músicas, Álbuns, Artistas, Playlists, Fila e Equalizador -->
     <aside class="panel">
       <div class="tabs" role="tablist">
+        <div class="tab-indicator" id="tab-indicator" aria-hidden="true"></div>
         <button class="tab" role="tab" id="tab-lib" aria-selected="true" aria-controls="pane-lib">Músicas</button>
         <button class="tab" role="tab" id="tab-q" aria-selected="false" aria-controls="pane-q">Fila <span class="cnt" id="qcnt">0</span></button>
         <button class="tab" role="tab" id="tab-eq" aria-selected="false" aria-controls="pane-eq">Som</button>

@@ -36,11 +36,18 @@ Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), c
   - Capas de álbuns embutidas decodificadas e exibidas diretamente.
   - Sincronização de letras em tempo real via arquivos `.lrc` ou tags embutidas (USLT/SYLT).
 
-- **Persistência & Métricas (Top Tracks):**
-  - Armazenamento atômico local em JSON (`userData/justplay_db.json`).
-  - Registro de contagem de execuções (`play_count`) e timestamp (`last_played_at`) ao atingir pelo menos 50% de execução de cada faixa.
-  - Ranking dinâmico "Mais Tocadas" ordenado estritamente por `play_count DESC`.
-  - CRUD completo de Playlists com ordenação personalizada.
+- **Ciclo de Vida da Indexação de Diretórios Locais:**
+  - **Bloqueio Reentrante & Ergonomia:** Ao acionar o botão de adição de pastas, a interface entra em estado assíncrono (`aria-busy="true"`, "Aguardando pasta...") prevenindo diálogos concorrentes.
+  - **Tratamento de Cancelamento & Permissões:** Tratamento de cancelamento sem erros no console e captura estruturada de falhas de permissão (`EACCES`).
+  - **Processamento em Lotes (Chunks):** Varredura recursiva de arquivos (`.mp3`, `.flac`, `.opus`, `.ogg`, `.wav`, `.m4a`) com decodificação de tags e capas em lotes assíncronos de 16 faixas, prevenindo travamento do loop de eventos.
+  - **Eventos de Progresso e Conclusão:** Emissão via IPC (`onScanProgress`, `onScanCompleted`) atualizando a barra de progresso em tempo real.
+  - **Desbloqueio Reativo do Modal:** Fechamento automático e animado do modal de boas-vindas com transição suave de opacidade e escala, repovoamento instantâneo da coleção e ativação imediata da primeira faixa.
+
+- **Cinemática & Diretrizes do Indicador Fluido de Abas (.tab-indicator):**
+  - **Trilho Desacoplado Vetorial:** Indicador único independente montado no contêiner `.tabs`, eliminando pseudo-elementos estáticos `::after`.
+  - **Interpolação Espacial & Aceleração:** Coordenadas calculadas via `offsetLeft` e `offsetWidth` com transição exclusiva acelerada por hardware (`transform: translateX(...)` e `width`) em curva cúbica natural `cubic-bezier(0.2, 0.8, 0.2, 1)` (300ms).
+  - **Navegação Ondulada da Máscara SVG (`--wavemask`):** Deslocamento dinâmico no eixo horizontal (`mask-position-x`) sincronizado com o sentido do deslocamento, gerando a ilusão de água em trânsito náutico.
+  - **Acessibilidade & Responsividade:** Observador dimensional `ResizeObserver` para recalibração em redimensionamento de janela, alternância via teclas <kbd>→</kbd> / <kbd>←</kbd> e chaveamento instantâneo sob `prefers-reduced-motion: reduce`.
 
 ---
 
