@@ -461,19 +461,28 @@ class StorageManager {
   }
 
   /**
-   * Returns the dynamic Top 100 Most Played tracks ordered by play_count DESC, last_played_at DESC.
+   * Returns the dynamic Top 100 Most Played tracks strictly filtered by play_count > 0,
+   * ordered by play_count DESC, last_played_at DESC.
    */
   getTop100Playlist() {
     const tracks = this.getAllTracks({ activeOnly: true });
     return tracks
-      .slice()
+      .filter(t => (t.play_count || t.playCount || 0) > 0)
       .sort((a, b) => {
-        const countA = a.play_count || 0;
-        const countB = b.play_count || 0;
+        const countA = a.play_count || a.playCount || 0;
+        const countB = b.play_count || b.playCount || 0;
         if (countB !== countA) return countB - countA;
         return (b.last_played_at || 0) - (a.last_played_at || 0);
       })
       .slice(0, 100);
+  }
+
+  /**
+   * Consulta assíncrona das faixas mais tocadas com filtro estrito de playCount > 0.
+   * @returns {Promise<Array<Object>>}
+   */
+  async queryTopPlayedTracks() {
+    return this.getTop100Playlist();
   }
 
   getAlbumsCatalog(options = { activeOnly: true }) {

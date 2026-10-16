@@ -7,7 +7,11 @@ class AudioEngine {
     this.storageManager = storageManager;
 
     this.audioCtx = null;
-    this.masterGain = null;
+    this.inputGainNode = null;
+    this.outputGainNode = null;
+    this.masterGain = null; // Alias para outputGainNode por compatibilidade
+    this.analyserNode = null;
+    this.freqDataArray = null;
 
     this.deckA = null;
     this.deckB = null;
@@ -19,6 +23,8 @@ class AudioEngine {
     this.isPlaying = false;
     this.sinkId = 'default';
     this.eqFilters = [];
+    this.eqBypass = false;
+    this.storedBands = new Array(10).fill(0);
 
     this.listeners = {
       timeupdate: [],
@@ -72,8 +78,19 @@ class AudioEngine {
     }
 
     this.audioCtx = new AudioContextClass();
-    this.masterGain = this.audioCtx.createGain();
-    this.masterGain.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
+
+    this.inputGainNode = this.audioCtx.createGain();
+    this.inputGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+
+    this.outputGainNode = this.audioCtx.createGain();
+    this.outputGainNode.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
+    this.masterGain = this.outputGainNode; // Alias por compatibilidade
+
+    // AnalyserNode único calibrado (fftSize = 128 -> 64 bins, smoothing = 0.8)
+    this.analyserNode = this.audioCtx.createAnalyser();
+    this.analyserNode.fftSize = 128;
+    this.analyserNode.smoothingTimeConstant = 0.8;
+    this.freqDataArray = new Uint8Array(this.analyserNode.frequencyBinCount);
 
     // Encadeamento de 10 BiquadFilterNode para equalizador acústico
     const EQ_CONFIGS = [
@@ -89,21 +106,26 @@ class AudioEngine {
       { freq: 16000, type: 'highshelf' }
     ];
 
-    this.eqFilters = EQ_CONFIGS.map(cfg => {
+    this.eqFilters = EQ_CONFIGS.map((cfg, i) => {
       const filter = this.audioCtx.createBiquadFilter();
       filter.type = cfg.type;
       filter.frequency.setValueAtTime(cfg.freq, this.audioCtx.currentTime);
       if (cfg.q) filter.Q.setValueAtTime(cfg.q, this.audioCtx.currentTime);
-      filter.gain.setValueAtTime(0, this.audioCtx.currentTime);
+      const initialGain = this.storedBands[i] || 0;
+      filter.gain.setValueAtTime(initialGain, this.audioCtx.currentTime);
       return filter;
     });
 
-    let prevNode = this.masterGain;
+    // Topologia em Série Estrita:
+    // AudioSourceNode -> InputGainNode -> Biquad[0] -> ... -> Biquad[9] -> AnalyserNode -> OutputGainNode -> destination
+    let prevNode = this.inputGainNode;
     for (const filter of this.eqFilters) {
       prevNode.connect(filter);
       prevNode = filter;
     }
-    prevNode.connect(this.audioCtx.destination);
+    prevNode.connect(this.analyserNode);
+    this.analyserNode.connect(this.outputGainNode);
+    this.outputGainNode.connect(this.audioCtx.destination);
 
     if (this.sinkId && this.sinkId !== 'default' && typeof this.audioCtx.setSinkId === 'function') {
       this.audioCtx.setSinkId(this.sinkId).catch(() => {});
@@ -129,7 +151,7 @@ class AudioEngine {
     }
 
     const gainNode = this.audioCtx.createGain();
-    gainNode.connect(this.masterGain);
+    gainNode.connect(this.inputGainNode);
 
     const sourceNode = this.audioCtx.createMediaElementSource(audio);
     sourceNode.connect(gainNode);
@@ -196,13 +218,84 @@ class AudioEngine {
   }
 
   /**
+   * Configura ou inspeciona o pipeline da topologia de áudio.
+   * @param {HTMLMediaElement} [audioElement]
+   * @returns {{ context: AudioContext, analyser: AnalyserNode, bands: BiquadFilterNode[], outputGain: GainNode }}
+   */
+  setupAudioPipeline(audioElement) {
+    this.initContext();
+    if (audioElement && this.audioCtx && this.inputGainNode) {
+      try {
+        const srcNode = this.audioCtx.createMediaElementSource(audioElement);
+        srcNode.connect(this.inputGainNode);
+      } catch (e) {
+        // Ignora caso o elemento já tenha um MediaElementSourceNode vinculado
+      }
+    }
+    return {
+      context: this.audioCtx,
+      analyser: this.analyserNode,
+      bands: this.eqFilters,
+      outputGain: this.outputGainNode
+    };
+  }
+
+  /**
+   * Extração de Energia Rítmica (BPM e Graves) em tempo real:
+   * Lê os primeiros bins correspondentes a sub-graves e graves (20 Hz a 160 Hz)
+   * sem alocação dinâmica de memória no loop de animação.
+   * @returns {number} Float normalizado de graves entre 0.0 e 1.0
+   */
+  getFrequencyEnergy() {
+    if (!this.analyserNode || !this.isPlaying || !this.freqDataArray) return 0;
+    this.analyserNode.getByteFrequencyData(this.freqDataArray);
+    // Bins 0..3 cobrem a faixa de sub-graves e graves (~20Hz - ~160Hz) com fftSize 128
+    let sum = 0;
+    const count = Math.min(4, this.freqDataArray.length);
+    for (let i = 0; i < count; i++) {
+      sum += this.freqDataArray[i];
+    }
+    return Math.max(0, Math.min(1, sum / (count * 255)));
+  }
+
+  /**
+   * Define o ganho de uma banda do equalizador em dB.
+   * @param {number} bandIndex
+   * @param {number} gainDb
+   */
+  setBandGain(bandIndex, gainDb) {
+    this.updateEqualizerGain(bandIndex, gainDb);
+  }
+
+  /**
    * Updates gain of a specific equalizer frequency band using exponential time constant
    * to guarantee smooth, pop-free and click-free audio modulation.
    */
   updateEqualizerGain(bandIndex, gainDb) {
     if (!this.eqFilters || !this.eqFilters[bandIndex] || !this.audioCtx) return;
     const clamped = Math.max(-12, Math.min(12, gainDb));
-    this.eqFilters[bandIndex].gain.setTargetAtTime(clamped, this.audioCtx.currentTime, 0.05);
+    this.storedBands[bandIndex] = clamped;
+    if (!this.eqBypass) {
+      this.eqFilters[bandIndex].gain.setTargetAtTime(clamped, this.audioCtx.currentTime, 0.02);
+    }
+  }
+
+  /**
+   * Chaveamento de Bypass Sem Ruídos:
+   * Quando o equalizador estiver desativado (bypass = true), todos os nós biquad
+   * têm seus ganhos zerados via rampa de tempo curta (0.015s), mantendo o fluxo
+   * do sinal e o AnalyserNode perfeitamente ativos e sem cliques acústicos.
+   * Ao reativar, restaura os ganhos em dB do preset ou configuração manual.
+   * @param {boolean} bypass
+   */
+  setEqualizerBypass(bypass) {
+    this.eqBypass = Boolean(bypass);
+    if (!this.eqFilters || !this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+    for (let i = 0; i < this.eqFilters.length; i++) {
+      const targetGain = this.eqBypass ? 0 : (this.storedBands[i] || 0);
+      this.eqFilters[i].gain.setTargetAtTime(targetGain, now, 0.015);
+    }
   }
 
   /**
@@ -334,10 +427,15 @@ class AudioEngine {
     }
   }
 
+  setMasterVolume(level) {
+    this.setVolume(level);
+  }
+
   setVolume(vol) {
     this.volume = Math.max(0, Math.min(vol, 1));
-    if (this.audioCtx && this.masterGain) {
-      this.masterGain.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
+    if (this.audioCtx && this.outputGainNode) {
+      this.outputGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+      this.outputGainNode.gain.setTargetAtTime(this.volume, this.audioCtx.currentTime, 0.005);
     }
     if (this.storageManager) {
       this.storageManager.updateSettings({ volume: this.volume });

@@ -264,7 +264,7 @@
 
     const calm = seaAnim.calm;
     const energy = reduceMotion ? 0 : seaAnim.energy;
-    const amp = (0.4 + 0.6 * calm) * (1 + energy * 0.9);
+    const amp = (0.4 + 0.6 * calm) * (1 + energy * 1.4);
     const spd = 0.25 + 0.75 * calm;
 
     const layers = [
@@ -374,37 +374,18 @@
   }
 
   /* ---------- Equalizador Gráfico (Curva Bézier e Biquad) ---------- */
-  let eqFilters = [];
   function setupAudioEqualizer(audioCtx, masterGain) {
-    if (!audioCtx || !masterGain || eqFilters.length > 0) return;
-    eqFilters = FREQS_HZ.map((f, i) => {
-      const filter = audioCtx.createBiquadFilter();
-      if (i === 0) {
-        filter.type = 'lowshelf';
-      } else if (i === FREQS_HZ.length - 1) {
-        filter.type = 'highshelf';
-      } else {
-        filter.type = 'peaking';
-        filter.Q.value = 1.4;
-      }
-      filter.frequency.value = f;
-      filter.gain.value = S.eq.bands[i]?.gain || 0;
-      return filter;
-    });
-
-    try {
-      masterGain.disconnect();
-    } catch (e) {}
-
-    if (S.eq.enabled) {
-      masterGain.connect(eqFilters[0]);
-      for (let i = 0; i < eqFilters.length - 1; i++) {
-        eqFilters[i].connect(eqFilters[i + 1]);
-      }
-      eqFilters[eqFilters.length - 1].connect(audioCtx.destination);
-    } else {
-      masterGain.connect(audioCtx.destination);
+    if (!window.audioEngine) return;
+    if (typeof window.audioEngine.setEqualizerBypass === 'function') {
+      window.audioEngine.setEqualizerBypass(!S.eq.enabled);
     }
+    S.eq.bands.forEach((band, idx) => {
+      if (typeof window.audioEngine.setBandGain === 'function') {
+        window.audioEngine.setBandGain(idx, band.gain || 0);
+      } else if (typeof window.audioEngine.updateEqualizerGain === 'function') {
+        window.audioEngine.updateEqualizerGain(idx, band.gain || 0);
+      }
+    });
   }
 
   function applyEqualizerBand(bandIndex, gainDb) {
@@ -416,14 +397,10 @@
     S.eq.bands[bandIndex].gain = clamp(gainDb, -12, 12);
     S.eq.preset = null;
 
-    if (window.audioEngine?.updateEqualizerGain) {
-      window.audioEngine.updateEqualizerGain(bandIndex, S.eq.enabled ? S.eq.bands[bandIndex].gain : 0);
-    } else if (eqFilters[bandIndex] && window.audioEngine?.audioCtx) {
-      eqFilters[bandIndex].gain.setTargetAtTime(
-        S.eq.enabled ? S.eq.bands[bandIndex].gain : 0,
-        window.audioEngine.audioCtx.currentTime,
-        0.02
-      );
+    if (window.audioEngine?.setBandGain) {
+      window.audioEngine.setBandGain(bandIndex, S.eq.bands[bandIndex].gain);
+    } else if (window.audioEngine?.updateEqualizerGain) {
+      window.audioEngine.updateEqualizerGain(bandIndex, S.eq.bands[bandIndex].gain);
     }
     renderEQ();
   }
@@ -438,39 +415,14 @@
 
     if (window.audioEngine?.setEqualizerPreset) {
       window.audioEngine.setEqualizerPreset(presetName);
-    } else {
-      S.eq.bands.forEach((band, idx) => {
-        if (eqFilters[idx] && window.audioEngine?.audioCtx) {
-          eqFilters[idx].gain.setTargetAtTime(
-            S.eq.enabled ? band.gain : 0,
-            window.audioEngine.audioCtx.currentTime,
-            0.02
-          );
-        }
-      });
     }
     renderEQ();
   }
 
   function toggleEqualizer(enabled) {
     S.eq.enabled = enabled;
-    const ae = window.audioEngine;
-    if (ae?.audioCtx && ae?.masterGain && eqFilters.length === 10) {
-      try {
-        ae.masterGain.disconnect();
-      } catch (e) {}
-      if (S.eq.enabled) {
-        ae.masterGain.connect(eqFilters[0]);
-        for (let i = 0; i < eqFilters.length - 1; i++) {
-          eqFilters[i].connect(eqFilters[i + 1]);
-        }
-        eqFilters[eqFilters.length - 1].connect(ae.audioCtx.destination);
-        eqFilters.forEach((f, idx) => {
-          f.gain.setTargetAtTime(S.eq.bands[idx].gain, ae.audioCtx.currentTime, 0.02);
-        });
-      } else {
-        ae.masterGain.connect(ae.audioCtx.destination);
-      }
+    if (window.audioEngine?.setEqualizerBypass) {
+      window.audioEngine.setEqualizerBypass(!enabled);
     }
     renderEQ();
   }
@@ -688,14 +640,28 @@
   let currentFilteredIndices = [];
   let virtualScrollAttached = false;
   let lastRenderedRange = { start: -1, end: -1 };
+  let cachedViewportHeight = 500;
 
-  function renderVirtualListSlice(force = false) {
+  function updateCachedViewportHeight() {
+    const listEl = $('#list');
+    if (listEl && listEl.clientHeight) {
+      cachedViewportHeight = listEl.clientHeight;
+    }
+  }
+  window.addEventListener('resize', updateCachedViewportHeight);
+
+  function renderVirtualizedTrackList(scrollOffset = null) {
+    renderVirtualListSlice(false, scrollOffset !== null ? scrollOffset : undefined);
+  }
+  window.renderVirtualizedTrackList = renderVirtualizedTrackList;
+
+  function renderVirtualListSlice(force = false, explicitScrollTop = null) {
     const listEl = $('#list');
     if (!listEl) return;
     if (currentFilteredIndices.length === 0) return;
 
-    const scrollTop = listEl.scrollTop || 0;
-    const viewportHeight = listEl.clientHeight || 500;
+    const scrollTop = explicitScrollTop !== null ? explicitScrollTop : (listEl.scrollTop || 0);
+    const viewportHeight = cachedViewportHeight || 500;
     const totalCount = currentFilteredIndices.length;
     const totalHeight = totalCount * ROW_HEIGHT;
 
@@ -734,11 +700,12 @@
     const listEl = $('#list');
     if (!listEl || virtualScrollAttached) return;
     virtualScrollAttached = true;
+    updateCachedViewportHeight();
     let ticking = false;
     listEl.addEventListener('scroll', () => {
       if (!ticking) {
         requestAnimationFrame(() => {
-          renderVirtualListSlice(false);
+          renderVirtualListSlice(false, listEl.scrollTop);
           ticking = false;
         });
         ticking = true;
@@ -759,8 +726,8 @@
         .sort((a, b) => new Date(S.tracks[b].last_played_at) - new Date(S.tracks[a].last_played_at));
     } else if (S.filter === 'top') {
       filteredIndices = filteredIndices
-        .filter((idx) => (S.tracks[idx].play_count || 0) > 0)
-        .sort((a, b) => (S.tracks[b].play_count || 0) - (S.tracks[a].play_count || 0));
+        .filter((idx) => (S.tracks[idx].play_count || S.tracks[idx].playCount || 0) > 0)
+        .sort((a, b) => (S.tracks[b].play_count || S.tracks[b].playCount || 0) - (S.tracks[a].play_count || S.tracks[a].playCount || 0));
     }
 
     if (query) {
@@ -775,6 +742,15 @@
 
     if (filteredIndices.length === 0) {
       listEl.classList.remove('virtualized');
+      if (S.filter === 'top') {
+        listEl.innerHTML = `
+          <li class="empty">
+            <b>Nenhuma música no ranking</b>
+            Nenhuma música foi reproduzida tempo suficiente ainda para figurar no ranking.
+          </li>
+        `;
+        return;
+      }
       if (S.tracks.length === 0) {
         listEl.innerHTML = `
           <li class="empty">
@@ -842,29 +818,45 @@
   }
 
   /* ---------- Renderização de Álbuns, Artistas e Playlists ---------- */
-  function renderAlbumsGrid() {
-    const grid = $('#albums-grid');
-    const countEl = $('#catalog-count') || $('#albums-count');
-    if (!grid) return;
+  let cachedAlbumsCatalog = null;
 
-    // Agrupar por álbum
+  function warmAlbumsCatalog() {
     const albumsMap = new Map();
     S.tracks.forEach((tr, idx) => {
       const albName = tr.album || 'Álbum Desconhecido';
       if (!albumsMap.has(albName)) {
         albumsMap.set(albName, {
+          id: `album_${albName}`,
+          name: albName,
           title: albName,
           artist: tr.artist || 'Artista Desconhecido',
           year: tr.year || '',
+          trackCount: 0,
+          coverUri: tr.coverDataUrl || (tr.coverPath ? (tr.coverPath.startsWith('file://') ? tr.coverPath : `file://${tr.coverPath}`) : null),
           coverDataUrl: tr.coverDataUrl,
           paletteConfig: tr.paletteConfig,
           trackIndices: []
         });
       }
-      albumsMap.get(albName).trackIndices.push(idx);
+      const item = albumsMap.get(albName);
+      item.trackIndices.push(idx);
+      item.trackCount++;
+      if (!item.coverUri && tr.coverDataUrl) {
+        item.coverUri = tr.coverDataUrl;
+        item.coverDataUrl = tr.coverDataUrl;
+      }
     });
+    cachedAlbumsCatalog = albumsMap;
+    return cachedAlbumsCatalog;
+  }
 
-    const albums = Array.from(albumsMap.values());
+  function renderAlbumsGrid() {
+    const grid = $('#albums-grid');
+    const countEl = $('#catalog-count') || $('#albums-count');
+    if (!grid) return;
+
+    if (!cachedAlbumsCatalog) warmAlbumsCatalog();
+    const albums = Array.from(cachedAlbumsCatalog.values());
     if (countEl) countEl.textContent = `${albums.length} ${albums.length === 1 ? 'álbum' : 'álbuns'}`;
 
     if (albums.length === 0) {
@@ -872,19 +864,24 @@
       return;
     }
 
-    grid.innerHTML = albums.map((alb) => `
-      <div class="album-card" data-album="${esc(alb.title)}">
-        <div class="album-cover-wrap" style="background:${coverBg(alb)}"></div>
-        <div class="album-card-title" title="${esc(alb.title)}">${esc(alb.title)}</div>
-        <div class="album-card-artist" title="${esc(alb.artist)}">${esc(alb.artist)}${alb.year ? `, ${alb.year}` : ''}</div>
-        <div class="album-card-count">${alb.trackIndices.length} ${alb.trackIndices.length === 1 ? 'música' : 'músicas'}</div>
-      </div>
-    `).join('');
+    grid.innerHTML = albums.map((alb) => {
+      const coverImgHtml = alb.coverUri
+        ? `<img loading="lazy" src="${alb.coverUri}" alt="${esc(alb.title)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" />`
+        : '';
+      return `
+        <div class="album-card" data-album="${esc(alb.title)}">
+          <div class="album-cover-wrap" style="background:${coverBg(alb)}">${coverImgHtml}</div>
+          <div class="album-card-title" title="${esc(alb.title)}">${esc(alb.title)}</div>
+          <div class="album-card-artist" title="${esc(alb.artist)}">${esc(alb.artist)}${alb.year ? `, ${alb.year}` : ''}</div>
+          <div class="album-card-count">${alb.trackCount} ${alb.trackCount === 1 ? 'música' : 'músicas'}</div>
+        </div>
+      `;
+    }).join('');
 
     grid.querySelectorAll('.album-card').forEach((card) => {
       card.addEventListener('click', () => {
         const albName = card.dataset.album;
-        const albData = albumsMap.get(albName);
+        const albData = cachedAlbumsCatalog?.get(albName);
         if (albData && albData.trackIndices.length > 0) {
           playTrackByIndex(albData.trackIndices[0]);
           S.queue = albData.trackIndices.slice(1);
@@ -894,6 +891,21 @@
         }
       });
     });
+  }
+
+  function getArtistInitials(name) {
+    if (!name || name === 'Artista Desconhecido') return 'AD';
+    const clean = name.trim().replace(/[^\p{L}\p{N}\s]/gu, '');
+    const stopWords = new Set(['and', 'the', '&', 'e', 'o', 'a', 'os', 'as', 'de', 'do', 'da', 'feat', 'ft']);
+    const parts = clean.split(/\s+/).filter((w) => !stopWords.has(w.toLowerCase()));
+    if (parts.length === 0) {
+      const rawParts = clean.split(/\s+/).filter(Boolean);
+      return (rawParts[0] ? rawParts[0].slice(0, 2) : name.slice(0, 2)).toUpperCase();
+    }
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
   function renderArtistsList() {
@@ -918,18 +930,21 @@
       return;
     }
 
-    listEl.innerHTML = artists.map((art) => `
-      <li class="artist-row" data-artist="${esc(art.name)}">
-        <div class="artist-info">
-          <div class="artist-avatar">${ic('user')}</div>
-          <div>
-            <div class="artist-name">${esc(art.name)}</div>
-            <div class="artist-tracks-count">${art.trackIndices.length} ${art.trackIndices.length === 1 ? 'faixa' : 'faixas'}</div>
+    listEl.innerHTML = artists.map((art) => {
+      const initials = getArtistInitials(art.name);
+      return `
+        <li class="artist-row" data-artist="${esc(art.name)}">
+          <div class="artist-info">
+            <div class="artist-avatar" title="${esc(art.name)}">${initials}</div>
+            <div>
+              <div class="artist-name">${esc(art.name)}</div>
+              <div class="artist-tracks-count">${art.trackIndices.length} ${art.trackIndices.length === 1 ? 'faixa' : 'faixas'}</div>
+            </div>
           </div>
-        </div>
-        <button class="round" style="width:28px;height:28px" title="Tocar artista">${ic('play', 'f')}</button>
-      </li>
-    `).join('');
+          <button class="round" style="width:28px;height:28px" title="Tocar artista">${ic('play', 'f')}</button>
+        </li>
+      `;
+    }).join('');
 
     listEl.querySelectorAll('.artist-row').forEach((row) => {
       row.addEventListener('click', () => {
@@ -1290,14 +1305,35 @@
     bindFolderEvents(vitrolaList);
   }
 
-  /* ---------- Fechamento Suave de Modais com Transição ---------- */
+  /* ---------- Transições Cinemáticas e Gerenciador de Modais ---------- */
+  function openSettingsModal() {
+    const modal = $('#settings-modal');
+    if (!modal) return;
+    modal.removeAttribute('hidden');
+    modal.style.display = 'grid';
+    // Força reflow antes de adicionar a classe para acionar a curva cubic-bezier
+    void modal.offsetHeight;
+    modal.classList.remove('is-closing', 'closing');
+    modal.classList.add('is-visible');
+    renderFoldersUI();
+  }
+  window.openSettingsModal = openSettingsModal;
+
+  function closeSettingsModal() {
+    const modal = $('#settings-modal');
+    closeModal(modal);
+  }
+  window.closeSettingsModal = closeSettingsModal;
+
   function closeModal(modal) {
-    if (!modal || modal.style.display === 'none') return;
-    modal.classList.add('closing');
+    if (!modal || modal.style.display === 'none' || modal.hasAttribute('hidden') || modal.classList.contains('is-closing') || modal.classList.contains('closing')) return;
+    modal.classList.remove('is-visible');
+    modal.classList.add('is-closing', 'closing');
     setTimeout(() => {
+      modal.classList.remove('is-closing', 'closing');
       modal.style.display = 'none';
-      modal.classList.remove('closing');
-    }, 220);
+      modal.setAttribute('hidden', '');
+    }, 180);
   }
 
   /* ---------- Desbloqueio e Transição do Modal Vazio ---------- */
@@ -1455,6 +1491,7 @@
       const reloaded = await window.api.getTracks();
       if (Array.isArray(reloaded)) {
         S.tracks = reloaded;
+        warmAlbumsCatalog();
         if (S.i >= S.tracks.length) S.i = S.tracks.length - 1;
         renderAllLists();
         syncPlayerStateToUI(currentTrack(), { isPlaying: window.audioEngine?.isPlaying || false });
@@ -1558,6 +1595,36 @@
     }
   }
 
+  /* ---------- Modulação Reativa do Espectro de Áudio (60 FPS Sem GC) ---------- */
+  function updateCanvasAnimations(energyDelta, timestamp) {
+    // 1. Extração de energia rítmica (sub-graves e graves) sem alocação no loop
+    let rawEnergy = 0;
+    if (window.audioEngine && S.playing && typeof window.audioEngine.getFrequencyEnergy === 'function') {
+      rawEnergy = window.audioEngine.getFrequencyEnergy();
+    }
+
+    // 2. Amortecimento exponencial em relação ao frame anterior (alpha approx 0.18)
+    const alpha = 0.18;
+    seaAnim.energy += (rawEnergy - seaAnim.energy) * alpha;
+
+    // Dinâmica suave de acalmar/agitar o mar
+    seaAnim.calm += ((S.playing ? 1 : 0) - seaAnim.calm) * Math.min(1, energyDelta * 3);
+
+    // 3. Modulação física da coroa solar (--pulse e --halo)
+    const sunEl = $('#sun');
+    if (!reduceMotion && sunEl) {
+      const smoothE = seaAnim.energy;
+      sunEl.style.setProperty('--pulse', (1 + smoothE * 0.05).toFixed(4));
+      sunEl.style.setProperty('--halo', (0.62 + smoothE * 0.55).toFixed(3));
+    }
+
+    // 4. Interpolação suave de paleta
+    if (tweenPalette(reduceMotion ? 1 : 1 - Math.exp(-energyDelta * 4.5))) {
+      flushColorsToCss();
+    }
+  }
+  window.updateCanvasAnimations = updateCanvasAnimations;
+
   function animationLoop(now) {
     // Suspensão em ocioso: pausado > 5s ou janela minimizada/oculta
     if (!S.playing && document.hidden) {
@@ -1589,23 +1656,8 @@
       }
     }
 
-    // Dinâmica de amortecimento das ondas do mar
-    seaAnim.calm += ((S.playing ? 1 : 0) - seaAnim.calm) * Math.min(1, dt * 3);
-    const bpm = currentTrack()?.bpm || 110;
-    const beatPhase = (S.pos * (bpm / 60)) % 1;
-    seaAnim.energy += (Math.exp(-beatPhase * 4.5) * seaAnim.calm - seaAnim.energy) * Math.min(1, dt * 14);
-
-    // Interpolação suave de paleta
-    if (tweenPalette(reduceMotion ? 1 : 1 - Math.exp(-dt * 4.5))) {
-      flushColorsToCss();
-    }
-
-    // Pulso luminoso do sol
-    const sunEl = $('#sun');
-    if (!reduceMotion && sunEl) {
-      sunEl.style.setProperty('--pulse', (1 + seaAnim.energy * 0.028).toFixed(4));
-      sunEl.style.setProperty('--halo', (0.62 + seaAnim.energy * 0.38).toFixed(3));
-    }
+    // Modulação física espectral do mar e sol via AnalyserNode
+    updateCanvasAnimations(dt, t);
 
     // Renderizar Canvas do Mar e Seekbar
     renderSeaAtmosphere(seaCtx, t, bpm, S.playing);
@@ -1740,7 +1792,7 @@
       S.playing = data.isPlaying;
       updatePlayControls();
       scheduleAnimationWake();
-      if (audioEngine.audioCtx && eqFilters.length === 0) {
+      if (audioEngine.audioCtx) {
         setupAudioEqualizer(audioEngine.audioCtx, audioEngine.masterGain);
       }
     });
@@ -1751,6 +1803,7 @@
         const localTracks = await window.api.getTracks();
         if (Array.isArray(localTracks)) {
           S.tracks = localTracks;
+          warmAlbumsCatalog();
         }
       }
     } catch (err) {
@@ -1771,8 +1824,15 @@
     renderAllLists();
     renderFoldersUI();
 
-    // 5. Volume e Mudo
+    // 5. Volume e Mudo com Desobstrução Ergonômica
+    const volWrap = $('.vol');
     const volInput = $('#vol');
+
+    ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach((evt) => {
+      volWrap?.addEventListener(evt, (e) => e.stopPropagation());
+      volInput?.addEventListener(evt, (e) => e.stopPropagation());
+    });
+
     const syncVolumeUI = () => {
       const effectiveVol = S.muted ? 0 : S.vol;
       if (volInput) {
@@ -1781,16 +1841,27 @@
       }
       $('#volUse')?.setAttribute('href', S.muted || S.vol === 0 ? '#i-mute' : '#i-vol');
       $('#bMute')?.setAttribute('aria-label', S.muted ? 'Reativar som' : 'Silenciar');
-      audioEngine.setVolume(effectiveVol / 100);
+      if (audioEngine) {
+        if (typeof audioEngine.setMasterVolume === 'function') {
+          audioEngine.setMasterVolume(effectiveVol / 100);
+        } else {
+          audioEngine.setVolume(effectiveVol / 100);
+        }
+      }
     };
 
-    volInput?.addEventListener('input', () => {
+    const onVolInput = (e) => {
+      e?.stopPropagation();
       S.vol = +volInput.value;
       S.muted = false;
       syncVolumeUI();
-    });
+    };
 
-    $('#bMute')?.addEventListener('click', () => {
+    volInput?.addEventListener('input', onVolInput);
+    volInput?.addEventListener('change', onVolInput);
+
+    $('#bMute')?.addEventListener('click', (e) => {
+      e.stopPropagation();
       S.muted = !S.muted;
       syncVolumeUI();
     });
@@ -2013,21 +2084,17 @@
       handleFolderImport();
     });
 
-    // Ajustes (Modal Unificado)
+    // Ajustes (Modal Unificado com Cinemática Suave)
     $('#rail-settings')?.addEventListener('click', () => {
-      const modal = $('#settings-modal');
-      if (modal) {
-        modal.style.display = 'grid';
-        renderFoldersUI();
-      }
+      openSettingsModal();
     });
 
     $('#btn-close-settings')?.addEventListener('click', () => {
-      closeModal($('#settings-modal'));
+      closeSettingsModal();
     });
 
     // Fechamento de modais ao clicar no backdrop (overlay)
-    $$('.modal-overlay').forEach((overlay) => {
+    $$('.modal-overlay, .modal-backdrop').forEach((overlay) => {
       overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
           closeModal(overlay);

@@ -9,21 +9,23 @@ Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), c
 - **Conceito Visual "Sunset & Sea" & Performance 60 FPS:**
   - **Cena Central Imersiva:** Pôr do sol dinâmico com iluminação harmônica (`--sky0`, `--sky1`, `--sky2`, `--sun-rgb`, `--sea0`, `--sea1`, `--accent`).
   - **Disco de Vinil / Sol:** Capa da faixa embutida (com cache de Blob URLs e revogação sem vazamentos de memória) ou gerador procedural vetorial de gradientes (anéis, pontos, diagonais, listras, cônico) com ranhuras táteis e pulso sincronizado com a energia da música.
-  - **Oceano em Canvas 2D (`#sea`):** Algoritmo de superposição de ondas senoidais multi-camadas com reflexo pontilhado da luz solar na água ponderado por BPM e ritmo, com suporte nativo a `prefers-reduced-motion`.
-  - **Seekbar Ondular em Canvas 2D (`#seekc`):** Linha tracejada e onda senoidal modulada pela posição atual com playhead circular e tooltip de minutagem em tempo real.
-  - **Doca Flutuante de Controles:** Barra de comando com efeito `backdrop-filter: blur(16px) saturate(1.25)`.
-  - **Virtualização Nativa da Coleção (60 FPS):** Virtual scrolling de alta fidelidade para centenas ou milhares de músicas com estrito isolamento de layout (`contain: strict; content-visibility: auto;`), mantendo a taxa de quadros estável em 60 FPS mesmo durante navegação intensa na biblioteca.
-  - **Equalizador Gráfico de 10 Bandas & Perfis Acústicos:** Curva cúbica Bézier de 40Hz a 16kHz, ajuste de ganhos de -12dB a +12dB via arraste e teclado, perfis acústicos convencionais (Plano, Graves Fortes, Eletrônica / Pop, Rock, Acústico / Voz) e encadeamento em série de nós `BiquadFilterNode` reais no pipeline de áudio com interpolação exponencial livre de estalos.
+  - **Oceano Reativo em Canvas 2D (`#sea`):** Análise espectral física em tempo real via Web Audio API (`AnalyserNode`, `fftSize = 128`), extraindo graves e sub-graves (20Hz a 160Hz) com buffer fixo pré-alocado `Uint8Array(64)` (zero alocações no RAF). A energia modulada por amortecimento exponencial ($\alpha \approx 0.18$) amplifica diretamente a amplitude das ondas marítimas por $(1 + E_{smooth} \cdot 1.4)$ e pulso solar com consumo residual de GPU.
+  - **Seekbar Ondular em Canvas 2D (`#seekc`):** Linha tracejada e onda senoidal modulada pela posição atual com playhead circular e tooltip de minutagem em tempo real em camada de composição GPU acelerada (`transform: translateZ(0)`).
+  - **Doca Flutuante de Controles:** Barra de comando com efeito `backdrop-filter: blur(16px) saturate(1.25)`. Slider de volume desobstruído com `touch-action: none`, isolamento de ponteiros (`stopPropagation`) e subida suave de 5ms.
+  - **Virtualização Nativa da Coleção (60 FPS Contínuos):** Virtual scrolling de alta performance para centenas ou milhares de músicas com estrito isolamento de layout (`contain: strict; content-visibility: auto; will-change: scroll-position;`), eliminando repaints do Canvas durante a rolagem rápida através de cache estático de altura do viewport.
+  - **Grafo Serial Estrito do Equalizador & Bypass Sem Ruídos:** Topologia sequencial mandatória (`AudioSourceNode -> InputGainNode -> Biquad[0..9] -> AnalyserNode -> OutputGainNode -> AudioContext.destination`). Desativação do equalizador aplica rampa de atenuação rápida de 15ms sem desconectar o fluxo de áudio, eliminando estouros ou cliques e mantendo o `AnalyserNode` permanentemente alimentado.
 
 - **Janela Frameless & Integração Desktop Linux:**
-  - **Modo Frameless Nativo (`frame: false`):** Eliminação de barras de janela duplas em desktops Linux (KDE Plasma, GNOME, etc.).
-  - **Titlebar Totalmente Arrastável:** Suporte a `-webkit-app-region: drag` com exclusão precisa (`no-drag`) para botões, busca e atalhos.
+  - **Modo Frameless Nativo (`frame: false`):** Eliminação de barras de janela duplas em desktops Linux (Nobara, Fedora, KDE Plasma, GNOME, etc.).
+  - **Titlebar Totalmente Arrastável:** Suporte a `-webkit-app-region: drag` com exclusão precisa (`no-drag`) e cursores de interação apropriados (`cursor: pointer` / `cursor: text`) para botões, caixa de busca e atalhos.
   - **Ações de Janela via IPC:** Minimizar, maximizar/restaurar e fechar integrados diretamente à janela do Electron.
 
 - **Navegação Desacoplada & Catálogos no Palco Central:**
   - **Palco Central Dedicado (`#catalog-stage`):** Visões de Álbuns, Artistas e Playlists são renderizadas no espaço central substituindo temporariamente a cena do pôr do sol, preservando o painel lateral da direita (`.panel`) intacto para Músicas, Fila e Equalizador.
-  - **Botão Voltar ao Player:** Retorno imediato à cena do pôr do sol pelo cabeçalho do catálogo ou ao tocar qualquer faixa.
-  - **Playlist do Sistema "As 100 Mais Tocadas":** Playlist nativa imutável com ordenação por contagem de execuções, exibição de badges ordinais (1º a 100º) e registro de reprodução com limiar de 50%.
+  - **Catálogo de Álbuns Memoizado:** Indexação sob demanda em memória `{ albumKey: { title, artist, year, count, coverUri } }` com renderização puramente declarativa e imagens com `loading="lazy"`.
+  - **Avatares Procedurais de Artistas:** Desenho automático de círculos com gradiente suave da paleta e iniciais em caixa alta (ex.: "Noah And The Whale" $\to$ "NW") quando não houver foto cadastrada.
+  - **Playlist do Sistema "As 100 Mais Tocadas":** Filtro estrito de faixas com `playCount > 0` ordenadas por execuções e data, exibição de badges ordinais (1º a 100º) e estado vazio contextual quando nenhuma faixa foi ouvida ainda.
+  - **Cinemática Suave do Modal de Ajustes:** Abertura com interpolação `cubic-bezier(0.16, 1, 0.3, 1)` (260ms), backdrop com fade linear (220ms) e saída reversa suave de 180ms com fechamento ao clicar fora.
 
 - **Gerenciador de Pastas Unificado em Ajustes:**
   - **Gestão Centralizada:** Adição, remoção e reindexação de diretórios de música locais unificados no modal de Ajustes.
