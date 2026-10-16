@@ -12,7 +12,14 @@ Player de música desktop offline imersivo para Linux (Nobara / Fedora-based), c
   - **Oceano em Canvas 2D (`#sea`):** Algoritmo de superposição de ondas senoidais multi-camadas com reflexo pontilhado da luz solar na água ponderado por BPM e ritmo, com suporte nativo a `prefers-reduced-motion`.
   - **Seekbar Ondular em Canvas 2D (`#seekc`):** Linha tracejada e onda senoidal modulada pela posição atual com playhead circular e tooltip de minutagem em tempo real.
   - **Doca Flutuante de Controles:** Barra de comando com efeito `backdrop-filter: blur(16px) saturate(1.25)`.
-  - **Equalizador Gráfico de 10 Bandas (Som):** Curva cúbica Bézier de 40Hz a 16kHz, ajuste de ganhos de -12dB a +12dB via arraste e teclado, presets dedicados (Cinema/Phonk, Graves fortes, Voz clara, Sunset & Sea) e nós biquad reais no pipeline de áudio.
+  - **Equalizador Gráfico de 10 Bandas & Perfis Acústicos:** Curva cúbica Bézier de 32Hz a 16kHz, ajuste de ganhos de -12dB a +12dB via arraste e teclado, perfis acústicos convencionais (Plano, Graves Fortes, Eletrônica / Pop, Rock, Acústico / Voz) e nós BiquadFilterNode reais no pipeline de áudio.
+- **Navegação Completa da Barra Lateral:**
+  - **Músicas:** Lista tabular completa com busca instantânea, colunas ordenáveis e reprodução direta.
+  - **Álbuns:** Grade visual de álbuns com capas em alta definição, contagem de faixas e ano de lançamento.
+  - **Artistas:** Visualização discográfica alfabética com agregação e ranqueamento de obras.
+  - **Playlists:** Gerenciador completo de listas de reprodução com criação, renomeação, exclusão e reordenação.
+  - **Vitrola:** Gaveta de escaneamento de biblioteca local com barra de progresso em tempo real e histórico de importações recentes.
+  - **Ajustes:** Gerenciador avançado de diretórios de música locais (adicionar, remover da biblioteca sem deletar arquivos físicos, reindexar), temas Claro/Escuro, seletor de paletas de acento (Pôr do Sol, Âmbar, Aurora, Oceano, Esmeralda, Lavanda) e tempo de crossfade.
 
 - **Motor de Áudio Dual-Deck (Deck A / Deck B):**
   - Transição contínua entre faixas via Web Audio API.

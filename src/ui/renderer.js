@@ -4,7 +4,7 @@
  */
 
 (() => {
-  // Helpers DOM e utilitários matemáticos
+  // Helpers DOM e utilitários
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -47,15 +47,15 @@
     return PALETTES[PAL_KEYS[idx]];
   }
 
-  /* ---------- Presets e Frequências do Equalizador ---------- */
+  /* ---------- Presets Convencionais de Acústica do Equalizador ---------- */
   const FREQ_LABELS = ['40', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
   const FREQS_HZ = [40, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
   const EQ_PRESETS = {
-    'V13 Cinema/Phonk': [7, 6, 0, 2, 1, 2, 4, 5, 4, 7],
     'Plano':            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    'Graves fortes':    [8, 7, 4, 1, 0, 0, 0, 1, 2, 3],
-    'Voz clara':        [-3, -2, 0, 1, 3, 4, 4, 2, 1, 0],
-    'Sunset & Sea':     [5, 4, 2, 0, -1, 1, 3, 4, 5, 6]
+    'Graves Fortes':    [8, 7, 5, 3, 1, 0, 0, 0, 0, 0],
+    'Eletrônica / Pop': [6, 5, 2, -1, -2, -1, 2, 4, 6, 7],
+    'Rock':             [4, 3, 4, 3, -1, 1, 3, 5, 4, 3],
+    'Acústico / Voz':   [-3, -2, 0, 2, 4, 5, 4, 2, 1, 0]
   };
 
   /* ---------- Estado Centralizado da Interface ---------- */
@@ -73,14 +73,18 @@
     q: '',
     queue: [],
     hist: [],
+    currentNav: 'tracks', // tracks | albums | artists | playlists
+    themeMode: 'dark', // dark | light | system
+    accentMode: 'dynamic', // dynamic or hex
+    crossfadeSeconds: 3,
+    volumeNormalization: false,
     eq: {
       enabled: true,
-      preset: 'V13 Cinema/Phonk',
-      bands: FREQ_LABELS.map((freq, i) => ({ freq, gain: EQ_PRESETS['V13 Cinema/Phonk'][i] }))
+      preset: 'Plano',
+      bands: FREQ_LABELS.map((freq, i) => ({ freq, gain: EQ_PRESETS['Plano'][i] }))
     }
   };
 
-  // Referência do track atual
   const currentTrack = () => (S.i >= 0 && S.i < S.tracks.length ? S.tracks[S.i] : null);
 
   /* ---------- Gerador de Capas Abstratas Procedurais ---------- */
@@ -137,6 +141,7 @@
       COLOR_KEYS.forEach((k) => { currentColors[k] = targetPalette[k].slice(); });
       flushColorsToCss();
     }
+    scheduleAnimationWake();
   }
 
   function flushColorsToCss() {
@@ -150,10 +155,13 @@
     s.setProperty('--sea1', rgb(currentColors.sea1));
     s.setProperty('--sun-rgb', css(currentColors.sun));
     s.setProperty('--stext', rgb(currentColors.text));
-    r.setProperty('--accent', rgb(currentColors.accent));
-    r.setProperty('--accent-rgb', css(currentColors.accent));
-    r.setProperty('--accent-hover', rgb(currentColors.accent));
-    r.setProperty('--ink', rgb(currentColors.ink));
+
+    if (S.accentMode === 'dynamic') {
+      r.setProperty('--accent', rgb(currentColors.accent));
+      r.setProperty('--accent-rgb', css(currentColors.accent));
+      r.setProperty('--accent-hover', rgb(currentColors.accent));
+      r.setProperty('--ink', rgb(currentColors.ink));
+    }
   }
 
   function tweenPalette(factor) {
@@ -168,7 +176,7 @@
     return diff > 0.4;
   }
 
-  /* ---------- Alternância de Capa do Sol (Disco Giratório) ---------- */
+  /* ---------- Alternância de Capa do Sol (Disco de Vinil) ---------- */
   let activeArtSide = false;
   function updateDiscCover(tr, instant = false) {
     const onEl = activeArtSide ? $('#artB') : $('#artA');
@@ -291,13 +299,14 @@
     drawLayer(layers[3], 3);
   }
 
-  /* ---------- Canvas de Progresso / Onda Seekbar (#seekc) ---------- */
+  /* ---------- Canvas de Progresso / Seekbar Sem Cortes Geométricos ---------- */
   function renderWaveformProgress(ctx, progressRatio, isPlaying) {
     if (!ctx || !seekW || !seekH) return;
     ctx.clearRect(0, 0, seekW, seekH);
 
     const mid = seekH / 2;
-    const x = clamp(progressRatio, 0, 1) * seekW;
+    // Margem segura de 7px para raio do cursor circular de 7px
+    const x = clamp(progressRatio * (seekW - 14) + 7, 7, seekW - 7);
     const calm = seaAnim.calm;
     const energy = reduceMotion ? 0 : seaAnim.energy;
 
@@ -305,36 +314,36 @@
     ctx.lineCap = 'round';
     ctx.lineWidth = 2.5;
     ctx.setLineDash([0.1, 7]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.38)';
     ctx.beginPath();
-    ctx.moveTo(Math.max(x, 8), mid);
-    ctx.lineTo(seekW - 3, mid);
+    ctx.moveTo(Math.max(x, 7), mid);
+    ctx.lineTo(seekW - 7, mid);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Onda senoidal de progresso
-    if (x > 4) {
+    // Onda senoidal de progresso concluído
+    if (x > 7) {
       ctx.strokeStyle = rgb(currentColors.accent);
       ctx.lineWidth = 3;
       ctx.beginPath();
-      const A = (1.2 + 2.6 * calm) * (1 + energy * 0.5);
+      const A = (1.2 + 2.4 * calm) * (1 + energy * 0.5);
       const wl = 26;
       const ph = reduceMotion ? 0 : (performance.now() / 1000) * (1.2 + 3 * calm) * 2;
-      for (let xx = 3; xx <= x; xx += 2) {
-        const env = Math.min(1, (x - xx) / 22, (xx - 3) / 10 + 0.35);
+      for (let xx = 7; xx <= x; xx += 2) {
+        const env = Math.min(1, (x - xx) / 20, (xx - 7) / 10 + 0.35);
         const y = mid + A * env * Math.sin((xx / wl) * 6.2832 - ph);
-        xx === 3 ? ctx.moveTo(xx, y) : ctx.lineTo(xx, y);
+        xx === 7 ? ctx.moveTo(xx, y) : ctx.lineTo(xx, y);
       }
       ctx.stroke();
     }
 
     // Cursor circular com anel
     ctx.beginPath();
-    ctx.arc(Math.max(x, 4), mid, 7, 0, 6.2832);
+    ctx.arc(x, mid, 7, 0, 6.2832);
     ctx.fillStyle = rgb(currentColors.accent);
     ctx.fill();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(7,17,27,0.9)';
+    ctx.strokeStyle = 'rgba(7,17,27,0.92)';
     ctx.stroke();
   }
 
@@ -372,6 +381,10 @@
     }
   }
 
+  function applyEqualizerBand(bandIndex, gainDb) {
+    handleEqualizerChange(bandIndex, gainDb);
+  }
+
   function handleEqualizerChange(bandIndex, gainDb) {
     if (bandIndex < 0 || bandIndex >= S.eq.bands.length) return;
     S.eq.bands[bandIndex].gain = clamp(gainDb, -12, 12);
@@ -384,6 +397,23 @@
         0.02
       );
     }
+    renderEQ();
+  }
+
+  function selectEqualizerPreset(presetName) {
+    const presetGains = EQ_PRESETS[presetName];
+    if (!presetGains) return;
+    S.eq.preset = presetName;
+    S.eq.bands.forEach((band, idx) => {
+      band.gain = presetGains[idx];
+      if (eqFilters[idx] && window.audioEngine?.audioCtx) {
+        eqFilters[idx].gain.setTargetAtTime(
+          S.eq.enabled ? band.gain : 0,
+          window.audioEngine.audioCtx.currentTime,
+          0.02
+        );
+      }
+    });
     renderEQ();
   }
 
@@ -522,21 +552,7 @@
     presets.addEventListener('click', (e) => {
       const b = e.target.closest('.chip');
       if (!b) return;
-      S.eq.preset = b.dataset.p;
-      const presetGains = EQ_PRESETS[S.eq.preset];
-      if (presetGains) {
-        S.eq.bands.forEach((band, idx) => {
-          band.gain = presetGains[idx];
-          if (eqFilters[idx] && window.audioEngine?.audioCtx) {
-            eqFilters[idx].gain.setTargetAtTime(
-              S.eq.enabled ? band.gain : 0,
-              window.audioEngine.audioCtx.currentTime,
-              0.02
-            );
-          }
-        });
-        renderEQ();
-      }
+      selectEqualizerPreset(b.dataset.p);
     });
 
     $('#eqsw')?.addEventListener('click', (e) => {
@@ -557,14 +573,15 @@
       $('#fmt').textContent = 'Áudio Local';
       $('#tdur').textContent = '0:00';
       $('#tcur').textContent = '0:00';
+      $('#empty-welcome').style.display = S.tracks.length === 0 ? 'grid' : 'none';
       return;
     }
 
+    $('#empty-welcome').style.display = 'none';
     $('#ttl').textContent = trackData.title || 'Faixa Desconhecida';
     $('#by').textContent = trackData.artist || 'Artista Desconhecido';
     $('#alb').textContent = (trackData.album || 'Álbum Desconhecido') + (trackData.year ? `, ${trackData.year}` : '');
 
-    // Formato de áudio
     const ext = (trackData.filePath || '').split('.').pop().toUpperCase();
     $('#fmt').textContent = ext || 'ÁUDIO';
 
@@ -572,15 +589,14 @@
     $('#tdur').textContent = fmt(S.dur);
     $('#seek')?.setAttribute('aria-valuemax', S.dur);
 
-    // Paleta harmônica
     const palette = trackData.paletteConfig || hashPalette((trackData.artist || '') + (trackData.album || '') + (trackData.title || ''));
     applyThemePalette(palette);
     updateDiscCover(trackData, false);
 
-    // Estado de reprodução
     S.playing = playbackState ? playbackState.isPlaying : S.playing;
     updatePlayControls();
     renderAllLists();
+    scheduleAnimationWake();
   }
 
   function updatePlayControls() {
@@ -716,10 +732,166 @@
     }
   }
 
+  /* ---------- Renderização de Álbuns, Artistas e Playlists ---------- */
+  function renderAlbumsGrid() {
+    const grid = $('#albums-grid');
+    const countEl = $('#albums-count');
+    if (!grid) return;
+
+    // Agrupar por álbum
+    const albumsMap = new Map();
+    S.tracks.forEach((tr, idx) => {
+      const albName = tr.album || 'Álbum Desconhecido';
+      if (!albumsMap.has(albName)) {
+        albumsMap.set(albName, {
+          title: albName,
+          artist: tr.artist || 'Artista Desconhecido',
+          year: tr.year || '',
+          coverDataUrl: tr.coverDataUrl,
+          paletteConfig: tr.paletteConfig,
+          trackIndices: []
+        });
+      }
+      albumsMap.get(albName).trackIndices.push(idx);
+    });
+
+    const albums = Array.from(albumsMap.values());
+    if (countEl) countEl.textContent = `${albums.length} ${albums.length === 1 ? 'álbum' : 'álbuns'}`;
+
+    if (albums.length === 0) {
+      grid.innerHTML = `<div class="empty"><b>Nenhum álbum encontrado</b>Importe músicas pela Vitrola.</div>`;
+      return;
+    }
+
+    grid.innerHTML = albums.map((alb) => `
+      <div class="album-card" data-album="${esc(alb.title)}">
+        <div class="album-cover-wrap" style="background:${coverBg(alb)}"></div>
+        <div class="album-card-title" title="${esc(alb.title)}">${esc(alb.title)}</div>
+        <div class="album-card-artist" title="${esc(alb.artist)}">${esc(alb.artist)}${alb.year ? `, ${alb.year}` : ''}</div>
+        <div class="album-card-count">${alb.trackIndices.length} ${alb.trackIndices.length === 1 ? 'música' : 'músicas'}</div>
+      </div>
+    `).join('');
+
+    grid.querySelectorAll('.album-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const albName = card.dataset.album;
+        const albData = albumsMap.get(albName);
+        if (albData && albData.trackIndices.length > 0) {
+          playTrackByIndex(albData.trackIndices[0]);
+          S.queue = albData.trackIndices.slice(1);
+          renderQueueList();
+          showToast(`Tocando álbum: ${albName}`);
+        }
+      });
+    });
+  }
+
+  function renderArtistsList() {
+    const listEl = $('#artists-list');
+    const countEl = $('#artists-count');
+    if (!listEl) return;
+
+    const artistsMap = new Map();
+    S.tracks.forEach((tr, idx) => {
+      const artName = tr.artist || 'Artista Desconhecido';
+      if (!artistsMap.has(artName)) {
+        artistsMap.set(artName, { name: artName, trackIndices: [] });
+      }
+      artistsMap.get(artName).trackIndices.push(idx);
+    });
+
+    const artists = Array.from(artistsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    if (countEl) countEl.textContent = `${artists.length} ${artists.length === 1 ? 'artista' : 'artistas'}`;
+
+    if (artists.length === 0) {
+      listEl.innerHTML = `<li class="empty"><b>Nenhum artista encontrado</b>Importe músicas pela Vitrola.</li>`;
+      return;
+    }
+
+    listEl.innerHTML = artists.map((art) => `
+      <li class="artist-row" data-artist="${esc(art.name)}">
+        <div class="artist-info">
+          <div class="artist-avatar">${ic('user')}</div>
+          <div>
+            <div class="artist-name">${esc(art.name)}</div>
+            <div class="artist-tracks-count">${art.trackIndices.length} ${art.trackIndices.length === 1 ? 'faixa' : 'faixas'}</div>
+          </div>
+        </div>
+        <button class="round" style="width:28px;height:28px" title="Tocar artista">${ic('play', 'f')}</button>
+      </li>
+    `).join('');
+
+    listEl.querySelectorAll('.artist-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const artName = row.dataset.artist;
+        const artData = artistsMap.get(artName);
+        if (artData && artData.trackIndices.length > 0) {
+          playTrackByIndex(artData.trackIndices[0]);
+          S.queue = artData.trackIndices.slice(1);
+          renderQueueList();
+          showToast(`Tocando artista: ${artName}`);
+        }
+      });
+    });
+  }
+
+  async function renderPlaylistsList() {
+    const listEl = $('#playlists-list');
+    if (!listEl) return;
+
+    let playlists = [];
+    try {
+      if (window.api?.getPlaylists) {
+        playlists = await window.api.getPlaylists('created');
+      }
+    } catch (e) {
+      console.warn('[Marola] Erro ao carregar playlists:', e);
+    }
+
+    if (!Array.isArray(playlists) || playlists.length === 0) {
+      listEl.innerHTML = `<li class="empty"><b>Nenhuma playlist criada</b>Clique em "+ Nova Playlist" acima.</li>`;
+      return;
+    }
+
+    listEl.innerHTML = playlists.map((pl) => `
+      <li class="playlist-row" data-id="${pl.id}">
+        <div class="playlist-info">
+          <div class="playlist-icon-wrap">${ic('list')}</div>
+          <div>
+            <div class="playlist-name">${esc(pl.name)}</div>
+            <div class="playlist-tracks-count">${pl.trackIds ? pl.trackIds.length : 0} músicas</div>
+          </div>
+        </div>
+        <button class="round" style="width:28px;height:28px" title="Tocar playlist">${ic('play', 'f')}</button>
+      </li>
+    `).join('');
+
+    listEl.querySelectorAll('.playlist-row').forEach((row) => {
+      row.addEventListener('click', async () => {
+        const plId = row.dataset.id;
+        const pl = playlists.find((p) => p.id === plId);
+        if (pl && pl.trackIds?.length > 0) {
+          const matchedIndices = pl.trackIds
+            .map((tid) => S.tracks.findIndex((t) => t.filePath === tid || t.id === tid))
+            .filter((idx) => idx !== -1);
+          if (matchedIndices.length > 0) {
+            playTrackByIndex(matchedIndices[0]);
+            S.queue = matchedIndices.slice(1);
+            renderQueueList();
+            showToast(`Tocando playlist: ${pl.name}`);
+          }
+        }
+      });
+    });
+  }
+
   function renderAllLists() {
     renderChips();
     renderLibraryList();
     renderQueueList();
+    if (S.currentNav === 'albums') renderAlbumsGrid();
+    if (S.currentNav === 'artists') renderArtistsList();
+    if (S.currentNav === 'playlists') renderPlaylistsList();
   }
 
   /* ---------- Navegação e Fila ---------- */
@@ -754,7 +926,27 @@
 
     if (window.audioEngine) {
       await window.audioEngine.playTrack(track);
+      scheduleAnimationWake();
     }
+  }
+
+  async function togglePlayback() {
+    if (S.tracks.length === 0) {
+      showToast('Adicione uma pasta de músicas na Vitrola para começar!');
+      return false;
+    }
+    if (S.i === -1) {
+      await playTrackByIndex(0);
+      return true;
+    }
+    if (window.audioEngine) {
+      window.audioEngine.togglePlayPause();
+      S.playing = window.audioEngine.isPlaying;
+      updatePlayControls();
+      scheduleAnimationWake();
+      return S.playing;
+    }
+    return false;
   }
 
   async function nextTrack() {
@@ -769,7 +961,10 @@
       S.playing = true;
       const track = S.tracks[nextIdx];
       syncPlayerStateToUI(track, { isPlaying: true });
-      if (window.audioEngine) await window.audioEngine.playTrack(track);
+      if (window.audioEngine) {
+        await window.audioEngine.playTrack(track);
+        scheduleAnimationWake();
+      }
     } else {
       S.pos = 0;
       S.playing = false;
@@ -792,8 +987,40 @@
     S.playing = true;
     const track = S.tracks[backIdx];
     syncPlayerStateToUI(track, { isPlaying: true });
-    if (window.audioEngine) await window.audioEngine.playTrack(track);
+    if (window.audioEngine) {
+      await window.audioEngine.playTrack(track);
+      scheduleAnimationWake();
+    }
     renderQueueList();
+  }
+
+  function stepTrack(dir) {
+    if (dir === 'next') nextTrack();
+    else if (dir === 'prev') prevTrack();
+  }
+
+  function seekPosition(seconds) {
+    S.pos = clamp(seconds, 0, S.dur || 0);
+    if (window.audioEngine) {
+      window.audioEngine.seek(S.pos);
+      scheduleAnimationWake();
+    }
+  }
+
+  function setPlaybackVolume(level, isMuted) {
+    S.vol = clamp(level, 0, 100);
+    S.muted = Boolean(isMuted);
+    const volInput = $('#vol');
+    if (volInput) {
+      const effectiveVol = S.muted ? 0 : S.vol;
+      volInput.value = effectiveVol;
+      volInput.style.setProperty('--v', effectiveVol + '%');
+      $('#volUse')?.setAttribute('href', S.muted || S.vol === 0 ? '#i-mute' : '#i-vol');
+      $('#bMute')?.setAttribute('aria-label', S.muted ? 'Reativar som' : 'Silenciar');
+    }
+    if (window.audioEngine) {
+      window.audioEngine.setVolume((S.muted ? 0 : S.vol) / 100);
+    }
   }
 
   /* ---------- Troca de Abas do Painel Direito ---------- */
@@ -804,9 +1031,263 @@
       const pane = $(`#${id}`);
       if (pane) pane.hidden = !isSelected;
     });
+    // Ocultar painéis secundários de álbuns/artistas/playlists se voltar para lib
+    if (tabName === 'lib') {
+      $('#pane-albums').hidden = true;
+      $('#pane-artists').hidden = true;
+      $('#pane-playlists').hidden = true;
+      $('#pane-lib').hidden = false;
+    }
   }
 
-  /* ---------- Exibição de Toasts ---------- */
+  /* ---------- Roteamento das Seções do Rail Lateral ---------- */
+  function switchNavSection(section) {
+    S.currentNav = section;
+    $$('.rail .rb').forEach((b) => b.removeAttribute('aria-current'));
+
+    const tabLib = $('#tab-lib');
+    const tabQ = $('#tab-q');
+    const tabEq = $('#tab-eq');
+
+    $('#pane-lib').hidden = true;
+    $('#pane-albums').hidden = true;
+    $('#pane-artists').hidden = true;
+    $('#pane-playlists').hidden = true;
+    $('#pane-q').hidden = true;
+    $('#pane-eq').hidden = true;
+
+    tabLib?.setAttribute('aria-selected', 'false');
+    tabQ?.setAttribute('aria-selected', 'false');
+    tabEq?.setAttribute('aria-selected', 'false');
+
+    if (section === 'tracks') {
+      $('#rail-tracks')?.setAttribute('aria-current', 'page');
+      tabLib?.setAttribute('aria-selected', 'true');
+      tabLib.textContent = 'Músicas';
+      $('#pane-lib').hidden = false;
+      renderLibraryList();
+    } else if (section === 'albums') {
+      $('#rail-albums')?.setAttribute('aria-current', 'page');
+      tabLib?.setAttribute('aria-selected', 'true');
+      tabLib.textContent = 'Álbuns';
+      $('#pane-albums').hidden = false;
+      renderAlbumsGrid();
+    } else if (section === 'artists') {
+      $('#rail-artists')?.setAttribute('aria-current', 'page');
+      tabLib?.setAttribute('aria-selected', 'true');
+      tabLib.textContent = 'Artistas';
+      $('#pane-artists').hidden = false;
+      renderArtistsList();
+    } else if (section === 'playlists') {
+      $('#rail-playlists')?.setAttribute('aria-current', 'page');
+      tabLib?.setAttribute('aria-selected', 'true');
+      tabLib.textContent = 'Playlists';
+      $('#pane-playlists').hidden = false;
+      renderPlaylistsList();
+    }
+  }
+
+  /* ---------- Gerenciador de Pastas Locais (Ajustes e Vitrola) ---------- */
+  async function getMonitoredFolders() {
+    try {
+      if (window.api?.getMusicFolders) {
+        return (await window.api.getMusicFolders()) || [];
+      }
+    } catch (e) {
+      console.warn('[Marola] Erro ao buscar pastas:', e);
+    }
+    return [];
+  }
+
+  async function renderFoldersUI() {
+    const folders = await getMonitoredFolders();
+    const settingsList = $('#music-folders-list');
+    const vitrolaList = $('#vitrola-folders-list');
+
+    const html = folders.length > 0
+      ? folders.map((f) => `
+        <li class="folder-item" data-id="${f.id}" data-path="${esc(f.path)}">
+          <div class="folder-item-info">
+            <svg class="i"><use href="#i-folder"/></svg>
+            <span class="folder-item-path" title="${esc(f.path)}">${esc(f.path)}</span>
+          </div>
+          <div class="folder-item-actions">
+            <span class="folder-count-badge">${f.trackCount || 0} faixas</span>
+            <button class="switch" role="switch" aria-checked="${f.enabled !== false}" title="Ocultar/Exibir faixas"></button>
+            <button class="btn-remove-folder" title="Remover pasta do Marola">${ic('trash')}</button>
+          </div>
+        </li>
+      `).join('')
+      : `<li class="empty" style="padding:14px 8px;font-size:12px">Nenhuma pasta monitorada no momento.</li>`;
+
+    if (settingsList) settingsList.innerHTML = html;
+    if (vitrolaList) vitrolaList.innerHTML = html;
+
+    const bindFolderEvents = (container) => {
+      if (!container) return;
+      container.querySelectorAll('.folder-item').forEach((item) => {
+        const folderId = item.dataset.id;
+        const folderPath = item.dataset.path;
+
+        // Toggle visibilidade
+        item.querySelector('.switch')?.addEventListener('click', async (e) => {
+          const currentChecked = e.currentTarget.getAttribute('aria-checked') === 'true';
+          const nextState = !currentChecked;
+          e.currentTarget.setAttribute('aria-checked', String(nextState));
+          if (window.api?.toggleMusicFolder) {
+            await window.api.toggleMusicFolder(folderId, nextState);
+            await reloadLibrary();
+            showToast(nextState ? 'Pasta ativada na biblioteca' : 'Pasta ocultada da biblioteca');
+          }
+        });
+
+        // Remover pasta
+        item.querySelector('.btn-remove-folder')?.addEventListener('click', async () => {
+          await removeMonitoredFolder(folderId || folderPath);
+        });
+      });
+    };
+
+    bindFolderEvents(settingsList);
+    bindFolderEvents(vitrolaList);
+  }
+
+  async function addMonitoredFolder() {
+    if (!window.api?.openFolderDialog || !window.api?.scanFolder || !window.api?.parseMetadataBatch) {
+      showToast('API de diálogo de pastas não disponível');
+      return { success: false, tracksImported: 0 };
+    }
+
+    const folderRes = await window.api.openFolderDialog();
+    if (!folderRes || folderRes.canceled || !folderRes.filePaths?.length) {
+      return { success: false, tracksImported: 0 };
+    }
+
+    const folderPath = folderRes.filePaths[0];
+    showProgressUI(true, 'Escaneando pasta selecionada...', 20);
+
+    try {
+      const audioFiles = await window.api.scanFolder(folderPath);
+      showProgressUI(true, `Indexando ${audioFiles.length} arquivos encontrados...`, 50);
+
+      let importedCount = 0;
+      if (audioFiles.length > 0) {
+        const metaList = await window.api.parseMetadataBatch(audioFiles);
+        if (window.api.upsertTracksBatch) {
+          await window.api.upsertTracksBatch(metaList);
+        }
+        importedCount = metaList.length;
+      }
+
+      if (window.api.addMusicFolder) {
+        await window.api.addMusicFolder(folderPath);
+      }
+
+      showProgressUI(true, 'Concluído!', 100);
+      setTimeout(() => showProgressUI(false), 800);
+
+      await reloadLibrary();
+      await renderFoldersUI();
+      showToast(`Sucesso: ${importedCount} faixas importadas!`);
+      return { success: true, addedPath: folderPath, tracksImported: importedCount };
+    } catch (err) {
+      console.error('[Marola] Erro ao adicionar pasta:', err);
+      showProgressUI(false);
+      showToast('Erro ao importar pasta de músicas.');
+      return { success: false, tracksImported: 0 };
+    }
+  }
+
+  async function removeMonitoredFolder(folderIdOrPath) {
+    if (!window.api?.removeMusicFolder) return { success: false, removedTracks: 0 };
+    try {
+      showToast('Removendo pasta e atualizando catálogo...');
+      await window.api.removeMusicFolder(folderIdOrPath);
+      await reloadLibrary();
+      await renderFoldersUI();
+      showToast('Pasta removida do catálogo com sucesso!');
+      return { success: true, removedTracks: 1 };
+    } catch (err) {
+      console.error('[Marola] Erro ao remover pasta:', err);
+      showToast('Erro ao desvincular pasta.');
+      return { success: false, removedTracks: 0 };
+    }
+  }
+
+  async function toggleFolderVisibility(folderId, enabled) {
+    if (window.api?.toggleMusicFolder) {
+      await window.api.toggleMusicFolder(folderId, enabled);
+      await reloadLibrary();
+      await renderFoldersUI();
+    }
+  }
+
+  async function reloadLibrary() {
+    if (window.api?.getTracks) {
+      const reloaded = await window.api.getTracks();
+      if (Array.isArray(reloaded)) {
+        S.tracks = reloaded;
+        if (S.i >= S.tracks.length) S.i = S.tracks.length - 1;
+        renderAllLists();
+        syncPlayerStateToUI(currentTrack(), { isPlaying: window.audioEngine?.isPlaying || false });
+      }
+    }
+  }
+
+  function showProgressUI(visible, text = '', percent = 0) {
+    const box = $('#vitrola-progress-box');
+    const fill = $('#vitrola-progress-fill');
+    const txt = $('#vitrola-progress-text');
+    if (!box) return;
+    box.style.display = visible ? 'block' : 'none';
+    if (fill) fill.style.width = percent + '%';
+    if (txt) txt.textContent = text;
+  }
+
+  /* ---------- Temas e Cores de Acento ---------- */
+  function setThemeMode(mode) {
+    S.themeMode = mode;
+    if (mode === 'light') {
+      root.setAttribute('data-theme', 'light');
+    } else if (mode === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+    } else if (mode === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    }
+    $$('.theme-mode-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+  }
+
+  function setAccentColor(colorHex) {
+    S.accentMode = colorHex;
+    $$('.accent-dot').forEach((d) => {
+      d.classList.toggle('active', d.dataset.accent === colorHex);
+    });
+
+    if (colorHex === 'dynamic') {
+      flushColorsToCss();
+    } else {
+      const rgbArr = hex(colorHex);
+      root.style.setProperty('--accent', colorHex);
+      root.style.setProperty('--accent-rgb', css(rgbArr));
+      root.style.setProperty('--accent-hover', colorHex);
+    }
+  }
+
+  function setCrossfadeDuration(seconds) {
+    S.crossfadeSeconds = clamp(seconds, 0, 12);
+    const slider = $('#crossfade-slider');
+    const valEl = $('#crossfade-val');
+    if (slider) slider.value = S.crossfadeSeconds;
+    if (valEl) valEl.textContent = S.crossfadeSeconds.toFixed(1) + 's';
+    if (window.audioEngine) {
+      window.audioEngine.setCrossfade(S.crossfadeSeconds);
+    }
+  }
+
+  /* ---------- Toasts ---------- */
   let toastTimer = null;
   function showToast(msg) {
     const toast = $('#toast-notification');
@@ -814,17 +1295,96 @@
     toast.textContent = msg;
     toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
   }
+
+  /* ---------- Loop de Animação com Suspensão em Ocioso ---------- */
+  let rafId = null;
+  let isRafRunning = false;
+  let lastTime = performance.now();
+  let startTime = lastTime;
+  let pausedTimeStart = 0;
+
+  function scheduleAnimationWake() {
+    pausedTimeStart = 0;
+    if (!isRafRunning) {
+      isRafRunning = true;
+      lastTime = performance.now();
+      rafId = requestAnimationFrame(animationLoop);
+    }
+  }
+
+  function animationLoop(now) {
+    // Suspensão em ocioso: pausado > 5s ou janela minimizada/oculta
+    if (!S.playing && document.hidden) {
+      isRafRunning = false;
+      return;
+    }
+    if (!S.playing) {
+      if (!pausedTimeStart) pausedTimeStart = now;
+      if (now - pausedTimeStart > 5000) {
+        isRafRunning = false;
+        return;
+      }
+    } else {
+      pausedTimeStart = 0;
+    }
+
+    const dt = Math.min(0.1, (now - lastTime) / 1000);
+    lastTime = now;
+    const t = reduceMotion ? 0 : (now - startTime) / 1000;
+
+    // Sincronização estrita de tempo com o motor nativo de áudio (elimina avanço fantasma)
+    if (window.audioEngine && window.audioEngine.isPlaying && !isDraggingSeek) {
+      const curDeck = window.audioEngine.getActiveDeck();
+      if (curDeck?.audio && !isNaN(curDeck.audio.currentTime)) {
+        S.pos = curDeck.audio.currentTime;
+        if (curDeck.audio.duration && !isNaN(curDeck.audio.duration) && curDeck.audio.duration > 0) {
+          S.dur = curDeck.audio.duration;
+        }
+      }
+    }
+
+    // Dinâmica de amortecimento das ondas do mar
+    seaAnim.calm += ((S.playing ? 1 : 0) - seaAnim.calm) * Math.min(1, dt * 3);
+    const bpm = currentTrack()?.bpm || 110;
+    const beatPhase = (S.pos * (bpm / 60)) % 1;
+    seaAnim.energy += (Math.exp(-beatPhase * 4.5) * seaAnim.calm - seaAnim.energy) * Math.min(1, dt * 14);
+
+    // Interpolação suave de paleta
+    if (tweenPalette(reduceMotion ? 1 : 1 - Math.exp(-dt * 4.5))) {
+      flushColorsToCss();
+    }
+
+    // Pulso luminoso do sol
+    const sunEl = $('#sun');
+    if (!reduceMotion && sunEl) {
+      sunEl.style.setProperty('--pulse', (1 + seaAnim.energy * 0.028).toFixed(4));
+      sunEl.style.setProperty('--halo', (0.62 + seaAnim.energy * 0.38).toFixed(3));
+    }
+
+    // Renderizar Canvas do Mar e Seekbar
+    renderSeaAtmosphere(seaCtx, t, bpm, S.playing);
+    const ratio = S.dur > 0 ? S.pos / S.dur : 0;
+    renderWaveformProgress(seekCtx, ratio, S.playing);
+
+    // Atualizar labels de minutagem
+    $('#tcur').textContent = fmt(S.pos);
+    $('#tdur').textContent = fmt(S.dur);
+
+    rafId = requestAnimationFrame(animationLoop);
+  }
+
+  let isDraggingSeek = false;
 
   /* ---------- Inicialização Principal do App ---------- */
   async function initApp() {
     // 1. Inicializar AudioEngine e QueueManager
     const queueManager = new QueueManager();
     const storageProxy = {
-      getSettings: () => ({ crossfadeSeconds: 3, volume: S.vol / 100 }),
-      updateSettings: (s) => window.api?.updateSettings(s),
-      incrementPlayCount: (fp) => window.api?.incrementPlayCount(fp)
+      getSettings: () => ({ crossfadeSeconds: S.crossfadeSeconds, volume: S.vol / 100 }),
+      updateSettings: (s) => window.api?.updateSettings?.(s),
+      incrementPlayCount: (fp) => window.api?.incrementPlayCount?.(fp)
     };
     const audioEngine = new AudioEngine(queueManager, storageProxy);
     window.audioEngine = audioEngine;
@@ -832,12 +1392,14 @@
 
     // Listeners do AudioEngine
     audioEngine.on('timeupdate', (data) => {
-      S.pos = data.currentTime || 0;
-      S.dur = data.duration || S.dur;
-      $('#tcur').textContent = fmt(S.pos);
-      $('#tdur').textContent = fmt(S.dur);
-      $('#seek')?.setAttribute('aria-valuenow', Math.floor(S.pos));
-      $('#seek')?.setAttribute('aria-valuetext', `${fmt(S.pos)} de ${fmt(S.dur)}`);
+      if (!isDraggingSeek) {
+        S.pos = data.currentTime || 0;
+        S.dur = data.duration || S.dur;
+        $('#tcur').textContent = fmt(S.pos);
+        $('#tdur').textContent = fmt(S.dur);
+        $('#seek')?.setAttribute('aria-valuenow', Math.floor(S.pos));
+        $('#seek')?.setAttribute('aria-valuetext', `${fmt(S.pos)} de ${fmt(S.dur)}`);
+      }
     });
 
     audioEngine.on('trackChange', (data) => {
@@ -851,6 +1413,7 @@
     audioEngine.on('stateChange', (data) => {
       S.playing = data.isPlaying;
       updatePlayControls();
+      scheduleAnimationWake();
       if (audioEngine.audioCtx && eqFilters.length === 0) {
         setupAudioEqualizer(audioEngine.audioCtx, audioEngine.masterGain);
       }
@@ -868,10 +1431,10 @@
       console.warn('[Marola] Erro ao carregar trilhas da biblioteca:', err);
     }
 
-    // 3. Inicializar Equalizador gráfico
+    // 3. Inicializar Equalizador com presets padrão
     initEQDOM();
 
-    // 4. Se houver músicas, carregar a primeira em espera
+    // 4. Carregar estado inicial
     if (S.tracks.length > 0) {
       S.i = 0;
       buildQueueFromCurrent();
@@ -880,8 +1443,9 @@
       syncPlayerStateToUI(null, { isPlaying: false });
     }
     renderAllLists();
+    renderFoldersUI();
 
-    // 5. Configurar controles de volume
+    // 5. Volume e Mudo
     const volInput = $('#vol');
     const syncVolumeUI = () => {
       const effectiveVol = S.muted ? 0 : S.vol;
@@ -906,63 +1470,73 @@
     });
     syncVolumeUI();
 
-    // 6. Configurar Seekbar
+    // 6. Seekbar com Cálculo de Margem Segura e Arraste Contínuo
     const seekEl = $('#seek');
     const tipEl = $('#tip');
 
-    const getSeekRatio = (e) => {
+    function seekAtEvent(e, commit = false) {
       const r = seekEl.getBoundingClientRect();
-      return clamp((e.clientX - r.left) / r.width, 0, 1);
-    };
-
-    const updateSeekTip = (e) => {
-      const ratio = getSeekRatio(e);
+      const ratio = clamp((e.clientX - r.left - 7) / (r.width - 14), 0, 1);
+      const targetTime = ratio * (S.dur || 0);
+      S.pos = targetTime;
       if (tipEl) {
-        tipEl.style.left = ratio * seekEl.clientWidth + 'px';
-        tipEl.textContent = fmt(ratio * S.dur);
+        tipEl.style.left = clamp(ratio * (r.width - 14) + 7, 7, r.width - 7) + 'px';
+        tipEl.textContent = fmt(targetTime);
       }
-    };
+      if (commit && window.audioEngine) {
+        window.audioEngine.seek(targetTime);
+        scheduleAnimationWake();
+      }
+    }
 
     seekEl?.addEventListener('pointerdown', (e) => {
       seekEl.setPointerCapture(e.pointerId);
+      isDraggingSeek = true;
       seekEl.classList.add('drag');
-      const ratio = getSeekRatio(e);
-      S.pos = ratio * S.dur;
-      audioEngine.seek(S.pos);
-      updateSeekTip(e);
+      seekAtEvent(e, false);
+      scheduleAnimationWake();
     });
 
     seekEl?.addEventListener('pointermove', (e) => {
-      updateSeekTip(e);
-      if (seekEl.classList.contains('drag')) {
-        const ratio = getSeekRatio(e);
-        S.pos = ratio * S.dur;
-        audioEngine.seek(S.pos);
+      if (isDraggingSeek) {
+        seekAtEvent(e, false);
+      } else {
+        const r = seekEl.getBoundingClientRect();
+        const ratio = clamp((e.clientX - r.left - 7) / (r.width - 14), 0, 1);
+        if (tipEl) {
+          tipEl.style.left = clamp(ratio * (r.width - 14) + 7, 7, r.width - 7) + 'px';
+          tipEl.textContent = fmt(ratio * (S.dur || 0));
+        }
       }
     });
 
-    seekEl?.addEventListener('pointerup', () => seekEl.classList.remove('drag'));
+    seekEl?.addEventListener('pointerup', (e) => {
+      if (isDraggingSeek) {
+        seekAtEvent(e, true);
+        isDraggingSeek = false;
+        seekEl.classList.remove('drag');
+        try { seekEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+    });
+
+    seekEl?.addEventListener('pointercancel', (e) => {
+      isDraggingSeek = false;
+      seekEl.classList.remove('drag');
+      try { seekEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    });
 
     seekEl?.addEventListener('keydown', (e) => {
       const delta = { ArrowRight: 5, ArrowLeft: -5, PageUp: 15, PageDown: -15 }[e.key];
       if (delta) {
         e.preventDefault();
-        S.pos = clamp(S.pos + delta, 0, S.dur - 0.5);
-        audioEngine.seek(S.pos);
+        seekPosition(S.pos + delta);
       }
-      if (e.key === 'Home') audioEngine.seek(0);
-      if (e.key === 'End') audioEngine.seek(S.dur - 0.5);
+      if (e.key === 'Home') seekPosition(0);
+      if (e.key === 'End') seekPosition(S.dur - 0.5);
     });
 
-    // 7. Controles de Reprodução da Doca
-    $('#bPlay')?.addEventListener('click', () => {
-      if (S.i === -1 && S.tracks.length > 0) {
-        playTrackByIndex(0);
-      } else {
-        audioEngine.togglePlayPause();
-      }
-    });
-
+    // 7. Botões da Doca
+    $('#bPlay')?.addEventListener('click', togglePlayback);
     $('#bNext')?.addEventListener('click', nextTrack);
     $('#bPrev')?.addEventListener('click', prevTrack);
 
@@ -981,7 +1555,7 @@
       $('#repUse')?.setAttribute('href', S.repeat === 'one' ? '#i-repeat1' : '#i-repeat');
     });
 
-    // 8. Eventos da Lista e Fila
+    // 8. Eventos da Lista Principal e Chips
     $('#chips')?.addEventListener('click', (e) => {
       const b = e.target.closest('.chip');
       if (!b) return;
@@ -1002,7 +1576,7 @@
       if (!row) return;
       const idx = +row.dataset.i;
       if (idx === S.i) {
-        audioEngine.togglePlayPause();
+        togglePlayback();
       } else {
         playTrackByIndex(idx);
       }
@@ -1015,7 +1589,7 @@
 
     $('#q')?.addEventListener('input', (e) => {
       S.q = e.target.value;
-      showPanelTab('lib');
+      switchNavSection('tracks');
       renderLibraryList();
     });
 
@@ -1027,67 +1601,52 @@
 
     $('#eqpill')?.addEventListener('click', () => showPanelTab('eq'));
 
-    // 10. Botões do Rail Lateral
-    $('#rail-tracks')?.addEventListener('click', () => {
-      S.filter = 'tudo';
-      showPanelTab('lib');
-      renderAllLists();
-      $$('.rail .rb').forEach((b) => b.removeAttribute('aria-current'));
-      $('#rail-tracks')?.setAttribute('aria-current', 'page');
+    // 10. Navegação do Rail Lateral
+    $('#rail-tracks')?.addEventListener('click', () => switchNavSection('tracks'));
+    $('#rail-albums')?.addEventListener('click', () => switchNavSection('albums'));
+    $('#rail-artists')?.addEventListener('click', () => switchNavSection('artists'));
+    $('#rail-playlists')?.addEventListener('click', () => switchNavSection('playlists'));
+
+    // Botão de boas-vindas quando biblioteca vazia
+    $('#btn-welcome-add')?.addEventListener('click', () => {
+      addMonitoredFolder();
     });
 
-    $('#rail-albums')?.addEventListener('click', () => {
-      showPanelTab('lib');
-      showToast('Visualização por Álbuns agrupada');
-    });
-
-    $('#rail-artists')?.addEventListener('click', () => {
-      showPanelTab('lib');
-      showToast('Visualização por Artistas agrupada');
-    });
-
-    $('#rail-playlists')?.addEventListener('click', () => {
-      showPanelTab('lib');
-      showToast('Visualização de Playlists aberta');
-    });
-
-    // Vitrola (Importar Músicas)
-    $('#rail-import')?.addEventListener('click', async () => {
-      if (window.api?.openFolderDialog && window.api?.scanFolder && window.api?.parseMetadataBatch) {
-        try {
-          const folderRes = await window.api.openFolderDialog();
-          if (folderRes && !folderRes.canceled && folderRes.filePaths?.length > 0) {
-            const folderPath = folderRes.filePaths[0];
-            showToast('Escaneando pasta selecionada...');
-            const audioFiles = await window.api.scanFolder(folderPath);
-            if (audioFiles && audioFiles.length > 0) {
-              const metaList = await window.api.parseMetadataBatch(audioFiles);
-              if (window.api.upsertTracksBatch) {
-                await window.api.upsertTracksBatch(metaList);
-              }
-              const reloaded = await window.api.getTracks();
-              if (Array.isArray(reloaded)) {
-                S.tracks = reloaded;
-                renderAllLists();
-                showToast(`${metaList.length} faixas importadas com sucesso!`);
-              }
-            } else {
-              showToast('Nenhum arquivo de áudio encontrado nesta pasta.');
-            }
-          }
-        } catch (err) {
-          console.error('[Marola] Erro ao importar pasta:', err);
-          showToast('Erro ao importar pasta de músicas.');
-        }
-      } else {
-        showToast('Seletor de pastas pronto.');
+    // Vitrola (Modal de Scanner e Importação)
+    $('#rail-import')?.addEventListener('click', () => {
+      const modal = $('#vitrola-modal');
+      if (modal) {
+        modal.style.display = 'grid';
+        renderFoldersUI();
       }
     });
 
-    // Ajustes
+    $('#btn-close-vitrola')?.addEventListener('click', () => {
+      const modal = $('#vitrola-modal');
+      if (modal) modal.style.display = 'none';
+    });
+
+    $('#btn-vitrola-add-folder')?.addEventListener('click', () => addMonitoredFolder());
+
+    $('#btn-vitrola-rescan')?.addEventListener('click', async () => {
+      if (window.api?.scanAllFolders) {
+        showProgressUI(true, 'Reescaneando biblioteca completa...', 40);
+        await window.api.scanAllFolders();
+        showProgressUI(true, 'Concluído!', 100);
+        setTimeout(() => showProgressUI(false), 600);
+        await reloadLibrary();
+        await renderFoldersUI();
+        showToast('Biblioteca completa reindexada!');
+      }
+    });
+
+    // Ajustes (Modal Expandido)
     $('#rail-settings')?.addEventListener('click', () => {
       const modal = $('#settings-modal');
-      if (modal) modal.style.display = 'grid';
+      if (modal) {
+        modal.style.display = 'grid';
+        renderFoldersUI();
+      }
     });
 
     $('#btn-close-settings')?.addEventListener('click', () => {
@@ -1095,37 +1654,42 @@
       if (modal) modal.style.display = 'none';
     });
 
-    const crossfadeSlider = $('#crossfade-slider');
-    const crossfadeVal = $('#crossfade-val');
-    crossfadeSlider?.addEventListener('input', (e) => {
-      const val = +e.target.value;
-      if (crossfadeVal) crossfadeVal.textContent = val + 's';
-      audioEngine.setCrossfade(val);
-    });
-
-    $('#btn-add-music-folder')?.addEventListener('click', async () => {
-      if (window.api?.openFolderDialog) {
-        const res = await window.api.openFolderDialog();
-        if (res && !res.canceled && res.filePaths?.length > 0) {
-          if (window.api.addMusicFolder) {
-            await window.api.addMusicFolder(res.filePaths[0]);
-            showToast('Pasta adicionada ao monitoramento!');
-          }
-        }
-      }
-    });
+    $('#btn-add-music-folder')?.addEventListener('click', () => addMonitoredFolder());
 
     $('#btn-rescan-folders')?.addEventListener('click', async () => {
       if (window.api?.scanAllFolders) {
-        showToast('Reescaneando todas as pastas...');
+        showToast('Reescaneando pastas...');
         await window.api.scanAllFolders();
-        const reloaded = await window.api.getTracks();
-        if (Array.isArray(reloaded)) {
-          S.tracks = reloaded;
-          renderAllLists();
-          showToast('Biblioteca atualizada!');
-        }
+        await reloadLibrary();
+        await renderFoldersUI();
+        showToast('Pastas reescaneadas!');
       }
+    });
+
+    // Ajustes: Modos de Tema
+    $$('.theme-mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setThemeMode(btn.dataset.mode);
+      });
+    });
+
+    // Ajustes: Seletor de Cores de Acento
+    $$('.accent-dot').forEach((dot) => {
+      dot.addEventListener('click', () => {
+        setAccentColor(dot.dataset.accent);
+      });
+    });
+
+    // Ajustes: Crossfade Slider
+    $('#crossfade-slider')?.addEventListener('input', (e) => {
+      setCrossfadeDuration(+e.target.value);
+    });
+
+    // Ajustes: Normalização de Volume
+    $('#normalization-switch')?.addEventListener('click', (e) => {
+      S.volumeNormalization = !S.volumeNormalization;
+      e.currentTarget.setAttribute('aria-checked', String(S.volumeNormalization));
+      showToast(S.volumeNormalization ? 'Normalização de volume ativada' : 'Normalização de volume desativada');
     });
 
     // 11. Seletor de Saída de Áudio (#out-sink)
@@ -1135,7 +1699,6 @@
           const devices = await navigator.mediaDevices.enumerateDevices();
           const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
           if (audioOutputs.length > 0) {
-            // Ciclar para o próximo dispositivo disponível
             const currentSink = audioEngine.sinkId;
             const curIdx = audioOutputs.findIndex((d) => d.deviceId === currentSink);
             const nextIdx = (curIdx + 1) % audioOutputs.length;
@@ -1166,17 +1729,23 @@
         return;
       }
       const tag = e.target.tagName;
-      if (tag === 'INPUT' && e.target.id === 'q' && e.key === 'Escape') {
+      if (tag === 'INPUT' && e.key === 'Escape') {
         e.target.value = '';
         S.q = '';
         renderLibraryList();
         e.target.blur();
         return;
       }
+      if (e.key === 'Escape') {
+        $('#settings-modal').style.display = 'none';
+        $('#vitrola-modal').style.display = 'none';
+        $('#playlist-picker-modal').style.display = 'none';
+        return;
+      }
       if (tag === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space' && tag !== 'BUTTON') {
         e.preventDefault();
-        audioEngine.togglePlayPause();
+        togglePlayback();
       } else if (e.key === 'n' || e.key === 'N') {
         nextTrack();
       } else if (e.key === 'p' || e.key === 'P') {
@@ -1184,45 +1753,17 @@
       }
     });
 
-    // 14. Redimensionamento e Loop de Animação do Canvas
+    // 14. Redimensionamento e Inicialização de Canvases
     resizeCanvases();
     window.addEventListener('resize', resizeCanvases);
 
-    let lastTime = performance.now();
-    let startTime = lastTime;
-    const sunEl = $('#sun');
-
-    function animationLoop(now) {
-      const dt = Math.min(0.1, (now - lastTime) / 1000);
-      lastTime = now;
-      const t = reduceMotion ? 0 : (now - startTime) / 1000;
-
-      // Dinâmica de amortecimento e energia
-      seaAnim.calm += ((S.playing ? 1 : 0) - seaAnim.calm) * Math.min(1, dt * 3);
-      const bpm = currentTrack()?.bpm || 110;
-      const beatPhase = (S.pos * (bpm / 60)) % 1;
-      seaAnim.energy += (Math.exp(-beatPhase * 4.5) * seaAnim.calm - seaAnim.energy) * Math.min(1, dt * 14);
-
-      // Interpolação de cores
-      if (tweenPalette(reduceMotion ? 1 : 1 - Math.exp(-dt * 4.5))) {
-        flushColorsToCss();
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        scheduleAnimationWake();
       }
+    });
 
-      // Efeito de pulso no sol
-      if (!reduceMotion && sunEl) {
-        sunEl.style.setProperty('--pulse', (1 + seaAnim.energy * 0.028).toFixed(4));
-        sunEl.style.setProperty('--halo', (0.62 + seaAnim.energy * 0.38).toFixed(3));
-      }
-
-      // Renderizar Canvas do Mar e da Seekbar
-      renderSeaAtmosphere(seaCtx, t, bpm, S.playing);
-      const ratio = S.dur > 0 ? S.pos / S.dur : 0;
-      renderWaveformProgress(seekCtx, ratio, S.playing);
-
-      requestAnimationFrame(animationLoop);
-    }
-
-    requestAnimationFrame(animationLoop);
+    scheduleAnimationWake();
   }
 
   // Inicializar quando o DOM estiver pronto
@@ -1232,10 +1773,23 @@
     initApp();
   }
 
-  // Exportar contratos globais para interoperabilidade e testes
+  // Exportar contratos globais para interoperabilidade, comandos e testes
   window.applyThemePalette = applyThemePalette;
   window.renderWaveformProgress = renderWaveformProgress;
   window.renderSeaAtmosphere = renderSeaAtmosphere;
   window.handleEqualizerChange = handleEqualizerChange;
+  window.applyEqualizerBand = applyEqualizerBand;
+  window.selectEqualizerPreset = selectEqualizerPreset;
   window.syncPlayerStateToUI = syncPlayerStateToUI;
+  window.togglePlayback = togglePlayback;
+  window.seekPosition = seekPosition;
+  window.stepTrack = stepTrack;
+  window.setPlaybackVolume = setPlaybackVolume;
+  window.getMonitoredFolders = getMonitoredFolders;
+  window.addMonitoredFolder = addMonitoredFolder;
+  window.removeMonitoredFolder = removeMonitoredFolder;
+  window.toggleFolderVisibility = toggleFolderVisibility;
+  window.setThemeMode = setThemeMode;
+  window.setAccentColor = setAccentColor;
+  window.setCrossfadeDuration = setCrossfadeDuration;
 })();

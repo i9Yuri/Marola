@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -43,6 +43,10 @@
   <symbol id="i-spk" viewBox="0 0 24 24"><rect x="6" y="3.5" width="12" height="17" rx="3"/><circle cx="12" cy="14.5" r="3"/><circle cx="12" cy="7.8" r=".9"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 4h6l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/></symbol>
+  <symbol id="i-sun-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>
 
 <div class="window" id="win" aria-label="Marola, player de música">
@@ -81,8 +85,8 @@
         <button class="rb" id="rail-playlists"><svg class="i"><use href="#i-list"/></svg>Playlists</button>
       </div>
       <div class="rail-g">
-        <button class="rb" id="rail-import" title="Adicionar Pasta / Músicas"><svg class="i"><use href="#i-down"/></svg>Vitrola</button>
-        <button class="rb" id="rail-settings"><svg class="i"><use href="#i-sliders"/></svg>Ajustes</button>
+        <button class="rb" id="rail-import" title="Vitrola (Importação e Scanner de Mídia)"><svg class="i"><use href="#i-down"/></svg>Vitrola</button>
+        <button class="rb" id="rail-settings" title="Ajustes do Player"><svg class="i"><use href="#i-sliders"/></svg>Ajustes</button>
       </div>
     </nav>
 
@@ -108,7 +112,23 @@
       </div>
       <div class="pills">
         <span class="pill" id="fmt">Áudio Local</span>
-        <button class="pill" id="eqpill"><span class="dot"></span><span id="eqpilltx">Som: Equalizador</span></button>
+        <button class="pill" id="eqpill"><span class="dot"></span><span id="eqpilltx">Som: Plano</span></button>
+      </div>
+
+      <!-- Card de Boas-Vindas para Biblioteca Vazia -->
+      <div class="empty-welcome-overlay" id="empty-welcome" style="display:none">
+        <div class="empty-welcome-card">
+          <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <path d="M9 18V6.5l10-2V16"/>
+            <circle cx="7" cy="18" r="2"/>
+            <circle cx="17" cy="16" r="2"/>
+          </svg>
+          <h2>Sua biblioteca está vazia</h2>
+          <p>Adicione pastas locais de áudio para carregar suas músicas e dar vida ao pôr do sol.</p>
+          <button class="btn btn-primary btn-welcome" id="btn-welcome-add">
+            <svg class="i"><use href="#i-folder"/></svg>Selecionar Pasta de Músicas
+          </button>
+        </div>
       </div>
 
       <!-- Doca de controles flutuante -->
@@ -141,7 +161,7 @@
       </div>
     </main>
 
-    <!-- Painel lateral da direita: Músicas, Fila e Equalizador -->
+    <!-- Painel lateral da direita: Músicas, Álbuns, Artistas, Playlists, Fila e Equalizador -->
     <aside class="panel">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tab-lib" aria-selected="true" aria-controls="pane-lib">Músicas</button>
@@ -153,6 +173,33 @@
       <section class="pane" id="pane-lib" role="tabpanel" aria-labelledby="tab-lib">
         <div class="chips" id="chips" role="group" aria-label="Filtrar coleção"></div>
         <ul class="list" id="list"></ul>
+      </section>
+
+      <!-- Visão de Álbuns -->
+      <section class="pane" id="pane-albums" role="tabpanel" hidden>
+        <div class="sec">
+          <h3>Álbuns</h3>
+          <span id="albums-count">0 álbuns</span>
+        </div>
+        <div class="albums-grid" id="albums-grid"></div>
+      </section>
+
+      <!-- Visão de Artistas -->
+      <section class="pane" id="pane-artists" role="tabpanel" hidden>
+        <div class="sec">
+          <h3>Artistas</h3>
+          <span id="artists-count">0 artistas</span>
+        </div>
+        <ul class="list" id="artists-list"></ul>
+      </section>
+
+      <!-- Visão de Playlists -->
+      <section class="pane" id="pane-playlists" role="tabpanel" hidden>
+        <div class="sec">
+          <h3>Playlists</h3>
+          <button class="link" id="btn-create-playlist-pane"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-plus"/></svg> Nova Playlist</button>
+        </div>
+        <ul class="list" id="playlists-list"></ul>
       </section>
 
       <!-- Aba 2: Fila de Reprodução -->
@@ -169,7 +216,7 @@
       <!-- Aba 3: Equalizador e Som -->
       <section class="pane eq" id="pane-eq" role="tabpanel" aria-labelledby="tab-eq" hidden>
         <div class="eq-top">
-          <div><strong>Equalizador</strong><span id="eqsub">V13 Cinema/Phonk</span></div>
+          <div><strong>Equalizador</strong><span id="eqsub">Plano</span></div>
           <button class="switch" id="eqsw" role="switch" aria-checked="true" aria-label="Equalizador ligado"></button>
         </div>
         <div class="chips" id="presets" role="group" aria-label="Perfis"></div>
@@ -185,7 +232,7 @@
           </div>
           <div class="fqs" id="fqs"></div>
         </div>
-        <p class="hint">Arraste os pontos para ajustar o ganho em dB. Com um ponto selecionado, use as setas do teclado para o ajuste fino. Frequências em Hz.</p>
+        <p class="hint">Arraste os pontos para ajustar o ganho em dB (-12 dB a +12 dB). Com um ponto selecionado, use as setas do teclado para ajuste fino de 1 dB.</p>
         <button class="out" id="out-sink" aria-label="Selecionar saída de áudio">
           <svg class="i"><use href="#i-spk"/></svg>
           <span><small>Saída de áudio</small><strong id="current-sink-label">Alto-falantes do sistema</strong></span>
@@ -197,26 +244,135 @@
   </div>
 </div>
 
-<!-- Modal de Ajustes / Configurações -->
-<div class="modal-overlay" id="settings-modal" style="display:none">
-  <div class="modal-card">
+<!-- Modal / Gaveta da Vitrola: Importação e Scanner de Mídia -->
+<div class="modal-overlay" id="vitrola-modal" style="display:none">
+  <div class="modal-card modal-card-lg">
     <div class="modal-header">
-      <h3>Ajustes do Marola</h3>
-      <button class="round close" id="btn-close-settings" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
+      <div class="modal-title-wrap">
+        <svg class="i modal-header-icon"><use href="#i-down"/></svg>
+        <h3>Vitrola — Importação & Scanner de Mídia</h3>
+      </div>
+      <button class="round close" id="btn-close-vitrola" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="setting-group">
-        <label>Crossfade de Áudio (Segundos): <strong id="crossfade-val">3s</strong></label>
-        <input type="range" id="crossfade-slider" min="0" max="12" step="0.5" value="3">
-      </div>
-      <div class="setting-group">
-        <label>Gerenciador de Pastas de Música</label>
+      <div class="vitrola-hero">
+        <p>Importe pastas locais de áudio para indexar automaticamente faixas, capas embutidas, metadados e arquivos de letras (.lrc).</p>
         <div class="folders-actions">
-          <button class="btn btn-secondary" id="btn-add-music-folder"><svg class="i"><use href="#i-folder"/></svg>Adicionar Pasta</button>
-          <button class="btn btn-primary" id="btn-rescan-folders">Reescanear Biblioteca</button>
+          <button class="btn btn-primary" id="btn-vitrola-add-folder">
+            <svg class="i"><use href="#i-folder"/></svg>Adicionar Nova Pasta
+          </button>
+          <button class="btn btn-secondary" id="btn-vitrola-rescan">
+            <svg class="i"><use href="#i-refresh"/></svg>Reescanear Biblioteca Completa
+          </button>
         </div>
+      </div>
+
+      <!-- Barra de progresso de escaneamento em tempo real -->
+      <div class="scanner-progress-box" id="vitrola-progress-box" style="display:none">
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="vitrola-progress-fill" style="width:0%"></div>
+        </div>
+        <span class="progress-text" id="vitrola-progress-text">Escaneando arquivos de áudio...</span>
+      </div>
+
+      <div class="vitrola-section">
+        <h4>Pastas Monitoradas Atualmente</h4>
+        <ul class="folders-list" id="vitrola-folders-list"></ul>
+      </div>
+
+      <div class="vitrola-section">
+        <h4>Faixas Adicionadas Recentemente</h4>
+        <ul class="recent-imports-list" id="vitrola-recent-list"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Expandido de Ajustes / Configurações -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal-card modal-card-lg">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <svg class="i modal-header-icon"><use href="#i-sliders"/></svg>
+        <h3>Ajustes do Marola</h3>
+      </div>
+      <button class="round close" id="btn-close-settings" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body settings-grid-body">
+
+      <!-- Coluna 1: Gerenciador de Pastas Locais -->
+      <div class="settings-col">
+        <div class="settings-section-title">
+          <svg class="i"><use href="#i-folder"/></svg>
+          <h4>Gerenciador de Pastas de Música</h4>
+        </div>
+        <p class="settings-desc">Adicione ou remova diretórios da biblioteca. A remoção de pastas desvincula o caminho e purga as faixas do catálogo sem deletar seus arquivos físicos no disco.</p>
+
+        <div class="folders-actions" style="margin-bottom:12px">
+          <button class="btn btn-primary" id="btn-add-music-folder">
+            <svg class="i"><use href="#i-folder"/></svg>Adicionar Pasta
+          </button>
+          <button class="btn btn-secondary" id="btn-rescan-folders">
+            <svg class="i"><use href="#i-refresh"/></svg>Reescanear
+          </button>
+        </div>
+
         <ul class="folders-list" id="music-folders-list"></ul>
       </div>
+
+      <!-- Coluna 2: Aparência, Temas e Reprodução -->
+      <div class="settings-col">
+        <div class="settings-section-title">
+          <svg class="i"><use href="#i-sun-moon"/></svg>
+          <h4>Aparência e Temas</h4>
+        </div>
+
+        <div class="setting-group">
+          <label>Modo de Exibição:</label>
+          <div class="theme-mode-selector">
+            <button class="theme-mode-btn active" data-mode="dark">Escuro (Padrão)</button>
+            <button class="theme-mode-btn" data-mode="light">Claro</button>
+            <button class="theme-mode-btn" data-mode="system">Sincronizar com o Sistema</button>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label>Cor de Destaque (Accent):</label>
+          <div class="accent-palette-picker" id="accent-palette-picker">
+            <button class="accent-dot" data-accent="#FF79B0" title="Rosa Marola" style="background:#FF79B0"></button>
+            <button class="accent-dot" data-accent="#14D1C2" title="Ciano Elétrico" style="background:#14D1C2"></button>
+            <button class="accent-dot" data-accent="#FF8C42" title="Laranja Pôr do Sol" style="background:#FF8C42"></button>
+            <button class="accent-dot" data-accent="#1ED760" title="Verde Esmeralda" style="background:#1ED760"></button>
+            <button class="accent-dot" data-accent="#A855F7" title="Roxo Noturno" style="background:#A855F7"></button>
+            <button class="accent-dot dynamic active" data-accent="dynamic" title="Dinâmico (Adapta à capa)">⚡ Dinâmico</button>
+          </div>
+        </div>
+
+        <div class="settings-section-title" style="margin-top:16px">
+          <svg class="i"><use href="#i-play"/></svg>
+          <h4>Reprodução & DSP</h4>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-label-row">
+            <label for="crossfade-slider">Crossfade Suave entre Faixas:</label>
+            <strong id="crossfade-val">3.0s</strong>
+          </div>
+          <input type="range" id="crossfade-slider" min="0" max="12" step="0.5" value="3">
+          <small class="setting-hint">Rampa mútua suave de transição entre faixas consecutivas (0s a 12s).</small>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-toggle-row">
+            <div>
+              <label for="normalization-switch">Normalização de Volume:</label>
+              <small class="setting-hint" style="display:block">Equilíbrio dinâmico de intensidade sonora entre diferentes álbuns.</small>
+            </div>
+            <button class="switch" id="normalization-switch" role="switch" aria-checked="false"></button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -241,7 +397,7 @@
 <!-- Toast de Notificações -->
 <div class="toast-msg" id="toast-notification"></div>
 
-<!-- Carregamento de scripts de serviços, áudio e UI -->
+<!-- Scripts de Serviços, Áudio e Controladores de UI -->
 <script src="../services/configStorage.js"></script>
 <script src="../services/playlistCoverService.js"></script>
 <script src="../services/libraryScanner.js"></script>
